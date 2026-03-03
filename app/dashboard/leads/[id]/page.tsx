@@ -278,7 +278,7 @@ export default async function LeadDetailPage(props: Props) {
           )}
 
           {/* Probe42 Company Details - Collapsible */}
-          <Probe42DataCard lead={lead} />
+          <Probe42DataCard lead={lead} hasMoa={hasMoa} hasAoa={hasAoa} />
         </div>
 
         {/* Sidebar */}

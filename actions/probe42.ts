@@ -530,6 +530,7 @@ export async function getCompanyDetails(
         data: leadData,
         rawData: llp,
         signatories: directors.slice(0, PROBE42.MAX_SIGNATORIES_DISPLAY),
+        dataLastUpdated: (rawData as { metadata?: { last_updated?: string } }).metadata?.last_updated ?? null,
       }
     } else {
       // Company Response (CIN or PAN)
@@ -575,6 +576,7 @@ export async function getCompanyDetails(
         data: leadData,
         rawData: enhancedCompanyData,
         signatories: signatories.slice(0, PROBE42.MAX_SIGNATORIES_DISPLAY),
+        dataLastUpdated: (rawData as { metadata?: { last_updated?: string } }).metadata?.last_updated ?? null,
       }
     }
   } catch (error) {

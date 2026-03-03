@@ -8,8 +8,7 @@ import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { ReviewApproveDialog } from "./review-approve-dialog"
 import { ReviewRejectDialog } from "./review-reject-dialog"
-import { PRESET_QUESTIONS, QUESTION_SECTIONS } from "@/lib/preset-questionnaire"
-import { getRatingLabel, getRatingColor } from "@/lib/scoring-algorithm"
+import { getRatingLabel, getRatingColor } from "@/lib/dynamic-scoring"
 
 type ReviewHistoryEntry = {
   reviewedAt: string
@@ -19,9 +18,28 @@ type ReviewHistoryEntry = {
   reviewerName: string
 }
 
+type SnapshotQuestion = {
+  id: string
+  text: string
+  section: string
+  displayNumber: string
+  inputType: string
+  options?: { label: string; score?: number }[] | { min?: number; max?: number; score: number }[]
+  maxScore: number
+  unit?: string | null
+}
+
+type DynamicAnswer = {
+  id: string
+  questionId: string
+  answerValue: string
+  score: number
+}
+
 type Props = {
   assessment: Assessment & {
     assessor: { id: string; name: string; email: string }
+    answers: DynamicAnswer[]
   }
   leadId: string
 }
@@ -33,8 +51,9 @@ export function ReviewForm({ assessment, leadId }: Props) {
   const [comments, setComments] = useState("")
   const [isPending, startTransition] = useTransition()
 
-  const reviewHistory = (assessment.reviewHistory as ReviewHistoryEntry[]) || []
-  const scoreBreakdown = (assessment.scoreBreakdown as Record<string, number>) || {}
+  const reviewHistory = assessment.reviewHistory as ReviewHistoryEntry[]
+  const questions = assessment.questionsSnapshot as SnapshotQuestion[]
+  const answerMap = new Map(assessment.answers.map(a => [a.questionId, a]))
 
   const handleApprove = () => {
     startTransition(async () => {
@@ -103,16 +122,15 @@ export function ReviewForm({ assessment, leadId }: Props) {
       <div className="glass rounded-xl p-4 md:p-6">
         <h3 className="text-sm md:text-base font-semibold mb-4">Score Breakdown</h3>
         <div className="grid gap-2">
-          {Object.entries(scoreBreakdown).map(([key, score]) => {
-            const question = PRESET_QUESTIONS[key as keyof typeof PRESET_QUESTIONS]
-            const maxScore = question?.maxScore ?? 10
+          {questions.map(q => {
+            const answer = answerMap.get(q.id)
             return (
-              <div key={key} className="flex items-center justify-between p-2 rounded-lg bg-foreground/5">
-                <span className="text-sm text-foreground/70 capitalize">
-                  {key.replace(/_/g, ' ')}
+              <div key={q.id} className="flex items-center justify-between p-2 rounded-lg bg-foreground/5">
+                <span className="text-sm text-foreground/70">
+                  {q.displayNumber}. {q.text.length > 60 ? q.text.substring(0, 60) + '...' : q.text}
                 </span>
                 <span className="text-sm font-medium">
-                  {score.toFixed(1)} / {maxScore}
+                  {answer ? answer.score.toFixed(1) : '0.0'} / {q.maxScore}
                 </span>
               </div>
             )
@@ -178,87 +196,46 @@ export function ReviewForm({ assessment, leadId }: Props) {
       <div className="glass rounded-xl p-4 md:p-6">
         <h3 className="text-sm md:text-base font-semibold mb-4">Questionnaire Answers</h3>
 
-        {/* Q1: Investment Plan */}
-        <div className="mb-4">
-          <p className="text-xs text-foreground/50 uppercase tracking-wide mb-2">Investment Plan</p>
-          <div className="p-3 rounded-lg bg-foreground/5">
-            <span className="text-sm">Ready with investment plan:</span>
-            <span className={`ml-2 font-medium ${assessment.hasInvestmentPlan ? 'text-green-500' : 'text-red-500'}`}>
-              {assessment.hasInvestmentPlan ? 'Yes' : 'No'}
-            </span>
-          </div>
-        </div>
+        {Array.from(
+          questions.reduce((sections, q) => {
+            sections.set(q.section, [...(sections.get(q.section) ?? []), q])
+            return sections
+          }, new Map<string, SnapshotQuestion[]>()).entries()
+        ).map(([section, sectionQuestions]) => (
+          <div key={section} className="mb-4 last:mb-0">
+            <p className="text-xs text-foreground/50 uppercase tracking-wide mb-2">{section}</p>
+            <div className="grid gap-2">
+              {sectionQuestions.map(q => {
+                const answer = answerMap.get(q.id)
+                const answerValue = answer?.answerValue ?? '-'
+                const isBoolean = q.inputType === 'boolean'
+                const isYes = answerValue === 'Yes'
 
-        {/* Q2: Governance */}
-        <div className="mb-4">
-          <p className="text-xs text-foreground/50 uppercase tracking-wide mb-2">Corporate Governance</p>
-          <div className="grid gap-2">
-            {[
-              { key: 'q2aGovernancePlan', label: 'Governance meets listing norms', value: assessment.q2aGovernancePlan },
-              { key: 'q2bFinancialReporting', label: 'Financial reporting compliance', value: assessment.q2bFinancialReporting },
-              { key: 'q2cControlSystems', label: 'Robust control systems', value: assessment.q2cControlSystems },
-              { key: 'q2dShareholdingClear', label: 'Clear shareholding', value: assessment.q2dShareholdingClear },
-            ].map(item => (
-              <div key={item.key} className="flex items-center justify-between p-2 rounded bg-foreground/5">
-                <span className="text-sm">{item.label}</span>
-                <span className={`text-sm font-medium ${item.value ? 'text-green-500' : 'text-red-500'}`}>
-                  {item.value ? 'Yes' : 'No'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Q3: Team */}
-        <div className="mb-4">
-          <p className="text-xs text-foreground/50 uppercase tracking-wide mb-2">Right Team</p>
-          <div className="grid gap-2">
-            {[
-              { key: 'q3aSeniorManagement', label: 'Professional senior management', value: assessment.q3aSeniorManagement },
-              { key: 'q3bIndependentBoard', label: 'Credible independent directors', value: assessment.q3bIndependentBoard },
-              { key: 'q3cMidManagement', label: 'Experienced mid-management', value: assessment.q3cMidManagement },
-              { key: 'q3dKeyPersonnel', label: 'Key personnel recognized', value: assessment.q3dKeyPersonnel },
-            ].map(item => (
-              <div key={item.key} className="flex items-center justify-between p-2 rounded bg-foreground/5">
-                <span className="text-sm">{item.label}</span>
-                <span className={`text-sm font-medium ${item.value ? 'text-green-500' : 'text-red-500'}`}>
-                  {item.value ? 'Yes' : 'No'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Financial Data */}
-        <div>
-          <p className="text-xs text-foreground/50 uppercase tracking-wide mb-2">Financial Data</p>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="p-2 rounded bg-foreground/5">
-              <p className="text-xs text-foreground/50">Paid-up Capital</p>
-              <p className="text-sm font-medium">₹{assessment.q4PaidUpCapital ?? '-'} Cr</p>
-            </div>
-            <div className="p-2 rounded bg-foreground/5">
-              <p className="text-xs text-foreground/50">Outstanding Shares</p>
-              <p className="text-sm font-medium">{assessment.q5OutstandingShares?.toLocaleString() ?? '-'}</p>
-            </div>
-            <div className="p-2 rounded bg-foreground/5">
-              <p className="text-xs text-foreground/50">Net Worth</p>
-              <p className="text-sm font-medium">₹{assessment.q6NetWorth ?? '-'} Cr</p>
-            </div>
-            <div className="p-2 rounded bg-foreground/5">
-              <p className="text-xs text-foreground/50">Borrowings</p>
-              <p className="text-sm font-medium">₹{assessment.q7Borrowings ?? '-'} Cr</p>
-            </div>
-            <div className="p-2 rounded bg-foreground/5">
-              <p className="text-xs text-foreground/50">D/E Ratio</p>
-              <p className="text-sm font-medium">{assessment.q8DebtEquityRatio ?? '-'}</p>
-            </div>
-            <div className="p-2 rounded bg-foreground/5">
-              <p className="text-xs text-foreground/50">EPS</p>
-              <p className="text-sm font-medium">₹{assessment.q11Eps ?? '-'}</p>
+                return (
+                  <div key={q.id} className="flex items-center justify-between p-2 rounded bg-foreground/5">
+                    <span className="text-sm">
+                      {q.displayNumber}. {q.text}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                      {isBoolean ? (
+                        <span className={`text-sm font-medium ${isYes ? 'text-green-500' : answerValue === '-' ? 'text-foreground/40' : 'text-red-500'}`}>
+                          {answerValue}
+                        </span>
+                      ) : (
+                        <span className="text-sm font-medium">
+                          {answerValue !== '-' ? `${answerValue}${q.unit ? ` ${q.unit}` : ''}` : '-'}
+                        </span>
+                      )}
+                      <span className="text-xs text-foreground/50">
+                        ({answer ? answer.score.toFixed(1) : '0'}/{q.maxScore})
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
-        </div>
+        ))}
       </div>
 
       {/* Review History */}

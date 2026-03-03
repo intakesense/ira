@@ -168,6 +168,15 @@ model Lead {
   probe42ReportDownloadedAt DateTime?
   probe42ReportFailedAt    DateTime?
 
+  // Probe42 Async Update Tracking
+  probe42UpdateRequestId   String?   // request_id from Probe42 update API
+  probe42UpdateStatus      String?   // REQUESTED | FULFILLED | CANCELLED
+  probe42UpdateRequestedAt DateTime? // When the update was triggered
+
+  // Payment
+  paymentLink       String?
+  paymentLinkSentAt DateTime?
+
   // Status & assignment
   status               LeadStatus  @default(NEW)
   assignedAssessorId   String?
@@ -268,6 +277,13 @@ model Assessment {
   probe42Data      Json?     // Full Probe42 API response
 
   // ==========================================
+  // Dynamic Questionnaire
+  // ==========================================
+  usesDynamicQuestions  Boolean  @default(false)   // true = uses Question table + AssessmentAnswer
+  questionsSnapshot    Json?                       // Snapshot of questions at submission time
+  answers              AssessmentAnswer[]           // Dynamic question answers
+
+  // ==========================================
   // Workflow
   // ==========================================
   status             AssessmentStatus  @default(DRAFT)
@@ -307,19 +323,50 @@ model Document {
 }
 
 model Question {
-  id        String       @id @default(cuid())
-  type      QuestionType
-  text      String       @db.Text
-  order     Int
-  helpText  String?      @db.Text
-  isActive  Boolean      @default(true)
+  id             String       @id @default(cuid())
+  type           QuestionType @default(ELIGIBILITY)
+  text           String       @db.Text
+  order          Int
+  helpText       String?      @db.Text
+  isActive       Boolean      @default(true)
+
+  // Dynamic questionnaire fields
+  section        String       @default("General")    // UI grouping: "IPO Readiness", "Corporate Governance", etc.
+  displayNumber  String       @default("")            // Display label: "1", "2A", "4", etc.
+  inputType      String       @default("boolean")     // "boolean" or "number"
+  options        Json?                                 // boolean: [{label:"Yes"},{label:"No"}], number: [{min?,max?,score}]
+  maxScore       Float        @default(0)             // Weightage: max points for this question
+  unit           String?                               // For number inputs: "crores", "shares", "ratio", etc.
+
+  // Relations
+  answers        AssessmentAnswer[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([type, order])
-  @@index([type, isActive]) // ✅ PERFORMANCE: Composite index for filtered queries
+  @@index([type, isActive])
+  @@index([isActive, order])
   @@map("question")
+}
+
+model AssessmentAnswer {
+  id             String     @id @default(cuid())
+  assessmentId   String
+  assessment     Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questionId     String
+  question       Question   @relation(fields: [questionId], references: [id])
+
+  answerValue    String     // Selected option label ("Yes"/"No") or numeric value as string
+  score          Float      // Calculated score for this answer
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assessmentId, questionId])
+  @@index([assessmentId])
+  @@index([questionId])
+  @@map("assessment_answer")
 }
 
 model AuditLog {

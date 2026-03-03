@@ -1,9 +1,9 @@
 'use client'
 
-import { Building2, ChevronDown, ChevronUp, RefreshCw, Calendar, DollarSign, Shield, Globe, FileText, Download, RotateCw, FileCheck } from 'lucide-react'
+import { Building2, ChevronDown, ChevronUp, RefreshCw, Calendar, DollarSign, Shield, Globe, FileText, Download, RotateCw, FileCheck, Clock, AlertCircle } from 'lucide-react'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { fetchProbe42Data } from '@/actions/lead'
+import { fetchProbe42Data, checkProbe42UpdateStatus } from '@/actions/lead'
 import { retryProbe42ReportDownload, downloadAndSaveReferenceDocument } from '@/actions/documents'
 import { toast } from 'sonner'
 
@@ -29,6 +29,8 @@ type Probe42DataCardProps = {
     probe42ReportDownloaded: boolean
     probe42ReportDownloadedAt: Date | null
     probe42ReportFailedAt: Date | null
+    probe42UpdateStatus: string | null
+    probe42UpdateRequestedAt: Date | null
   }
   hasMoa: boolean
   hasAoa: boolean
@@ -37,17 +39,27 @@ type Probe42DataCardProps = {
 export function Probe42DataCard({ lead, hasMoa, hasAoa }: Probe42DataCardProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingMoa, setIsDownloadingMoa] = useState(false)
   const [isDownloadingAoa, setIsDownloadingAoa] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+
+  const isUpdatePending = lead.probe42UpdateStatus === 'REQUESTED'
+  // CANCELLED (polling) and FAILED (callback) both mean the update didn't complete — allow retry
+  const isUpdateCancelled = lead.probe42UpdateStatus === 'CANCELLED' || lead.probe42UpdateStatus === 'FAILED'
+  const isCompanyInactive = lead.probe42UpdateStatus === 'INACTIVE'
 
   const handleFetchData = async () => {
     setIsLoading(true)
     try {
       const result = await fetchProbe42Data(lead.id)
       if (result.success) {
-        toast.success('Company data updated successfully')
+        if ((result.data as { updatePending?: boolean }).updatePending) {
+          toast.info('Data update requested. Probe42 will refresh the data within ~4 working hours.')
+        } else {
+          toast.success('Company data updated successfully')
+        }
         router.refresh()
       } else {
         toast.error(result.error || 'Failed to fetch company data')
@@ -56,6 +68,30 @@ export function Probe42DataCard({ lead, hasMoa, hasAoa }: Probe42DataCardProps) 
       toast.error('An unexpected error occurred')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleCheckStatus = async () => {
+    setIsCheckingStatus(true)
+    try {
+      const result = await checkProbe42UpdateStatus(lead.id)
+      if (result.success) {
+        const data = result.data as { updatePending?: boolean; updateCancelled?: boolean }
+        if (data.updatePending) {
+          toast.info('Update is still in progress. Please check again later.')
+        } else if (data.updateCancelled) {
+          toast.warning('Update was cancelled by Probe42. You can request a new refresh.')
+        } else {
+          toast.success('Data update complete! Company data has been refreshed.')
+        }
+        router.refresh()
+      } else {
+        toast.error(result.error || 'Failed to check update status')
+      }
+    } catch {
+      toast.error('An unexpected error occurred')
+    } finally {
+      setIsCheckingStatus(false)
     }
   }
 
@@ -128,13 +164,73 @@ export function Probe42DataCard({ lead, hasMoa, hasAoa }: Probe42DataCardProps) 
     })
   }
 
-  // If no data fetched yet, show empty state
-  if (!lead.probe42Fetched) {
+  // If no data fetched yet and no update pending/inactive status, show empty state
+  if (!lead.probe42Fetched && !isUpdatePending && !isCompanyInactive) {
     return null
   }
 
   return (
     <div className="glass rounded-xl overflow-hidden">
+      {/* Update In Progress Banner */}
+      {isUpdatePending && (
+        <div className="px-4 md:px-6 pt-4 md:pt-6">
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <Clock className="size-4 text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Data Update In Progress</p>
+              <p className="text-xs text-foreground/60 mt-0.5">
+                Probe42 is refreshing this company&apos;s data. This typically takes ~4 working hours.
+                {lead.probe42UpdateRequestedAt && (
+                  <> Requested {formatDate(lead.probe42UpdateRequestedAt)}.</>
+                )}
+              </p>
+            </div>
+            <button
+              onClick={handleCheckStatus}
+              disabled={isCheckingStatus}
+              className="px-3 py-1.5 text-xs bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
+              title="Check if update is ready"
+            >
+              {isCheckingStatus ? (
+                <>
+                  <RotateCw className="size-3 animate-spin" />
+                  <span>Checking...</span>
+                </>
+              ) : (
+                <span>Check Status</span>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cancelled Banner */}
+      {isUpdateCancelled && (
+        <div className="px-4 md:px-6 pt-4 md:pt-6">
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-danger/10 border border-danger/20">
+            <AlertCircle className="size-4 text-danger shrink-0 mt-0.5" />
+            <p className="text-sm text-danger">
+              The previous data update was cancelled by Probe42. Click Refresh to request a new update.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Inactive Company Banner */}
+      {isCompanyInactive && (
+        <div className="px-4 md:px-6 pt-4 md:pt-6">
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-foreground/5 border border-foreground/10">
+            <AlertCircle className="size-4 text-foreground/40 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-foreground/60">Company is Inactive</p>
+              <p className="text-xs text-foreground/40 mt-0.5">
+                Probe42 has identified this company as inactive. Data refresh is not available for inactive companies.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header - Always Visible */}
       <div className="p-4 md:p-6">
         <div className="flex items-start justify-between gap-4">
@@ -155,9 +251,9 @@ export function Probe42DataCard({ lead, hasMoa, hasAoa }: Probe42DataCardProps) 
           <div className="flex items-center gap-2">
             <button
               onClick={handleFetchData}
-              disabled={isLoading}
+              disabled={isLoading || isCompanyInactive}
               className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50"
-              title="Refresh data"
+              title={isCompanyInactive ? 'Company is inactive — refresh unavailable' : isUpdatePending ? 'Request a new update' : 'Refresh data'}
             >
               <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
             </button>

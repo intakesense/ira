@@ -10,6 +10,7 @@ import {
   Plus,
   Inbox,
   HelpCircle,
+  ClipboardList,
 } from "lucide-react"
 
 type NavItem = {
@@ -50,6 +51,12 @@ export function DashboardSidebar({ userRole, pendingSubmissionsCount = 0 }: Prop
       name: "Reviews",
       href: "/dashboard/reviews",
       icon: BarChart3,
+      roles: ["REVIEWER"],
+    },
+    {
+      name: "Questionnaire",
+      href: "/dashboard/questionnaire",
+      icon: ClipboardList,
       roles: ["REVIEWER"],
     },
     {

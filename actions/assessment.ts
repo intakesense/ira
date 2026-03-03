@@ -77,6 +77,12 @@ export type AssessmentWithRelations = Assessment & {
     name: string
     email: string
   }
+  answers: {
+    id: string
+    questionId: string
+    answerValue: string
+    score: number
+  }[]
 }
 
 type ReviewHistoryEntry = {
@@ -118,6 +124,14 @@ export async function getAssessment(
             id: true,
             name: true,
             email: true,
+          },
+        },
+        answers: {
+          select: {
+            id: true,
+            questionId: true,
+            answerValue: true,
+            score: true,
           },
         },
       },
@@ -168,6 +182,14 @@ export async function getAssessmentById(
             id: true,
             name: true,
             email: true,
+          },
+        },
+        answers: {
+          select: {
+            id: true,
+            questionId: true,
+            answerValue: true,
+            score: true,
           },
         },
       },

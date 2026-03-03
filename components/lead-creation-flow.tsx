@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useCallback } from 'react'
-import { Building2, FileText, Loader2 } from 'lucide-react'
+import { Building2, FileText, Loader2, Clock } from 'lucide-react'
 import { CompanySearchInput } from './company-search-input'
 import { CompanySearchResults } from './company-search-results'
 import { CompanyDetailsPreview } from './company-details-preview'
@@ -33,6 +33,7 @@ export function LeadCreationFlow() {
   const [prefilledData, setPrefilledData] = useState<LeadFormData | undefined>()
   const [rawCompanyData, setRawCompanyData] = useState<Record<string, unknown> | undefined>(undefined)
   const [signatories, setSignatories] = useState<Signatory[]>([])
+  const [dataLastUpdated, setDataLastUpdated] = useState<string | null>(null)
 
   const handleSearchResults = useCallback((results: SearchResult[], hasMore: boolean) => {
     setSearchResults(results)
@@ -50,6 +51,7 @@ export function LeadCreationFlow() {
         setPrefilledData(result.data)
         setRawCompanyData(result.rawData)
         setSignatories((result.signatories || []) as Signatory[])
+        setDataLastUpdated((result as { dataLastUpdated?: string | null }).dataLastUpdated ?? null)
         setMode('preview')
         toast.success('Company details loaded successfully')
       } else {
@@ -71,6 +73,7 @@ export function LeadCreationFlow() {
         setPrefilledData(result.data)
         setRawCompanyData(result.rawData)
         setSignatories((result.signatories || []) as Signatory[])
+        setDataLastUpdated((result as { dataLastUpdated?: string | null }).dataLastUpdated ?? null)
         setMode('preview')
         toast.success('Company details loaded successfully')
       } else {
@@ -84,6 +87,7 @@ export function LeadCreationFlow() {
     setPrefilledData(undefined)
     setRawCompanyData(undefined)
     setSignatories([])
+    setDataLastUpdated(null)
   }
 
   const handleProceedToForm = () => {
@@ -196,11 +200,22 @@ export function LeadCreationFlow() {
             <div className="glass rounded-xl p-4 bg-primary/5 border border-primary/20">
               <div className="flex items-start gap-3">
                 <Building2 className="size-5 text-primary shrink-0 mt-0.5" />
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">Company Details from Probe42</p>
                   <p className="text-xs text-foreground/60 mt-1">
                     Review the company information below. You can edit fields in the next step.
                   </p>
+                  {dataLastUpdated ? (
+                    <p className="text-xs text-foreground/50 mt-1 flex items-center gap-1">
+                      <Clock className="size-3 shrink-0" />
+                      Probe42 data as of{' '}
+                      {new Date(dataLastUpdated).toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </div>

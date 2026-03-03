@@ -31,6 +31,9 @@
     "sonner": "^2.0.7",
     "zod": "^4.1.12"
   },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -42,6 +45,7 @@
     "eslint-config-next": "16.0.0",
     "prisma": "^6.18.0",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "why-is-node-running": "^3.2.2"
   }

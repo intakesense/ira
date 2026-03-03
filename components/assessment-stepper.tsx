@@ -2,11 +2,11 @@
 
 /**
  * Assessment Stepper Component
- * 
+ *
  * 3-step assessment flow:
  * Step 1: Company Verification (Editable Form)
  * Step 2: Financial Data Verification (Editable Form)
- * Step 3: Preset Questionnaire
+ * Step 3: Dynamic Questionnaire
  */
 
 import { useState, useTransition, useEffect } from "react"
@@ -26,10 +26,13 @@ import type { AssessmentWithLead } from "@/actions/assessment-stepper"
 import {
     verifyCompanyData,
     verifyFinancialData,
-    updatePresetAnswers,
-    submitPresetAssessment,
+    submitAssessment,
+    saveDynamicAnswer,
     goToStep,
 } from "@/actions/assessment-stepper"
+import { getActiveQuestions } from "@/actions/questionnaire"
+import { detectQuestionType } from "@/components/questionnaire-manager"
+import type { Question } from "@prisma/client"
 
 // ============================================================================
 // Types
@@ -444,11 +447,14 @@ function Step2FinancialVerification({
     )
 }
 
+
 // ============================================================================
-// Step 3: Preset Questionnaire (Unchanged logic, just keeping it here)
+// Step 3: Dynamic Questionnaire
 // ============================================================================
 
-function Step3PresetQuestionnaire({
+type DynamicAnswer = { questionId: string; answerValue: string; score: number }
+
+function Step3DynamicQuestionnaire({
     assessment,
     onBack,
     onSubmit,
@@ -460,302 +466,234 @@ function Step3PresetQuestionnaire({
     isPending: boolean
 }) {
     const [saving, startSaving] = useTransition()
+    const [questions, setQuestions] = useState<Question[]>([])
+    const [answers, setAnswers] = useState<Map<string, string>>(new Map())
+    const [loading, setLoading] = useState(true)
 
-    // Local state for form values
-    const [formData, setFormData] = useState({
-        hasInvestmentPlan: assessment.hasInvestmentPlan,
-        q2aGovernancePlan: assessment.q2aGovernancePlan,
-        q2bFinancialReporting: assessment.q2bFinancialReporting,
-        q2cControlSystems: assessment.q2cControlSystems,
-        q2dShareholdingClear: assessment.q2dShareholdingClear,
-        q3aSeniorManagement: assessment.q3aSeniorManagement,
-        q3bIndependentBoard: assessment.q3bIndependentBoard,
-        q3cMidManagement: assessment.q3cMidManagement,
-        q3dKeyPersonnel: assessment.q3dKeyPersonnel,
-        q4PaidUpCapital: assessment.q4PaidUpCapital,
-        q5OutstandingShares: assessment.q5OutstandingShares,
-        q6NetWorth: assessment.q6NetWorth,
-        q7Borrowings: assessment.q7Borrowings,
-        q8DebtEquityRatio: assessment.q8DebtEquityRatio,
-        q9TurnoverYear1: assessment.q9TurnoverYear1,
-        q9TurnoverYear2: assessment.q9TurnoverYear2,
-        q9TurnoverYear3: assessment.q9TurnoverYear3,
-        q10EbitdaYear1: assessment.q10EbitdaYear1,
-        q10EbitdaYear2: assessment.q10EbitdaYear2,
-        q10EbitdaYear3: assessment.q10EbitdaYear3,
-        q11Eps: assessment.q11Eps,
-    })
+    // Fetch active questions and existing answers on mount
+    useEffect(() => {
+        async function loadData() {
+            const result = await getActiveQuestions()
+            if (result.success) {
+                setQuestions(result.data)
+            }
 
-    // Auto-save on change
-    const handleChange = (field: string, value: boolean | number | null) => {
-        setFormData(prev => ({ ...prev, [field]: value }))
+            // Load existing answers from assessment
+            const existingAnswers = (assessment as any).answers as DynamicAnswer[] | undefined
+            if (existingAnswers) {
+                const map = new Map<string, string>()
+                for (const a of existingAnswers) {
+                    map.set(a.questionId, a.answerValue)
+                }
+                setAnswers(map)
+            }
+
+            setLoading(false)
+        }
+        loadData()
+    }, [assessment])
+
+    const handleAnswerChange = (questionId: string, value: string) => {
+        setAnswers(prev => {
+            const next = new Map(prev)
+            next.set(questionId, value)
+            return next
+        })
 
         startSaving(async () => {
-            await updatePresetAnswers(assessment.id, { [field]: value })
+            await saveDynamicAnswer(assessment.id, questionId, value)
         })
     }
 
-    const YesNoQuestion = ({
-        id,
-        label,
-        value
-    }: {
-        id: string
-        label: string
-        value: boolean | null
-    }) => (
-        <div className="p-4 rounded-lg bg-background/50">
-            <p className="text-sm font-medium mb-3">{label}</p>
-            <div className="flex gap-3">
-                <button
-                    type="button"
-                    onClick={() => handleChange(id, true)}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-all ${value === true
-                        ? "bg-green-600 text-white border-green-600"
-                        : "bg-background border-foreground/20 hover:bg-foreground/5"
-                        }`}
-                >
-                    Yes
-                </button>
-                <button
-                    type="button"
-                    onClick={() => handleChange(id, false)}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-all ${value === false
-                        ? "bg-red-600 text-white border-red-600"
-                        : "bg-background border-foreground/20 hover:bg-foreground/5"
-                        }`}
-                >
-                    No
-                </button>
-            </div>
-        </div>
-    )
+    // Group questions by section
+    const sections = new Map<string, Question[]>()
+    for (const q of questions) {
+        const list = sections.get(q.section) || []
+        list.push(q)
+        sections.set(q.section, list)
+    }
 
-    const NumberInput = ({
-        id,
-        label,
-        value,
-        unit,
-        placeholder,
-    }: {
-        id: string
-        label: string
-        value: number | null
-        unit?: string
-        placeholder?: string
-    }) => (
-        <div className="p-4 rounded-lg bg-background/50">
-            <label className="text-sm font-medium mb-2 block">{label}</label>
-            <div className="relative">
-                <input
-                    type="number"
-                    step="any"
-                    value={value ?? ""}
-                    onChange={(e) => {
-                        const val = e.target.value === "" ? null : parseFloat(e.target.value)
-                        handleChange(id, val)
-                    }}
-                    placeholder={placeholder}
-                    className="w-full h-12 px-4 rounded-lg border border-foreground/20 bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
-                />
-                {unit && (
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-foreground/50">
-                        {unit}
-                    </span>
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <span className="ml-2 text-foreground/60">Loading questions...</span>
+            </div>
+        )
+    }
+
+    const BooleanQuestion = ({ question }: { question: Question }) => {
+        const options = question.options as Array<{ label: string; score?: number }> | null
+        const currentAnswer = answers.get(question.id)
+        const qType = detectQuestionType(question)
+        if (!options) return null
+
+        return (
+            <div className="p-4 rounded-lg bg-background/50">
+                <p className="text-sm font-medium mb-3">{question.text}</p>
+                {question.helpText && (
+                    <p className="text-xs text-foreground/50 mb-3">{question.helpText}</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                    {options.map((opt, i) => {
+                        const isSelected = currentAnswer === opt.label
+
+                        // Yes/No: first = green, second = red
+                        // MCQ: primary highlight for all options
+                        let selectedCls = "bg-primary text-primary-foreground border-primary"
+                        if (qType === "yesno") {
+                            selectedCls = i === 0
+                                ? "bg-green-600 text-white border-green-600"
+                                : "bg-red-600 text-white border-red-600"
+                        }
+
+                        return (
+                            <button
+                                key={opt.label}
+                                type="button"
+                                onClick={() => handleAnswerChange(question.id, opt.label)}
+                                className={`flex-1 min-w-[80px] py-2 px-4 rounded-lg text-sm font-medium border transition-all ${
+                                    isSelected
+                                        ? selectedCls
+                                        : "bg-background border-foreground/20 hover:bg-foreground/5"
+                                }`}
+                            >
+                                {opt.label}
+                            </button>
+                        )
+                    })}
+                </div>
+            </div>
+        )
+    }
+
+    const NumberQuestion = ({ question }: { question: Question }) => {
+        const currentAnswer = answers.get(question.id)
+        const numValue = currentAnswer !== undefined && currentAnswer !== ""
+            ? parseFloat(currentAnswer)
+            : null
+        const ranges = question.options as Array<{ min?: number | null; max?: number | null; score: number }> | null
+
+        // Mirror scoreNumberAnswer logic exactly so the displayed score matches what gets saved
+        const matchedIndex = (() => {
+            if (numValue === null || isNaN(numValue) || !ranges) return -1
+            // 1. Exact match (min === max)
+            for (let i = 0; i < ranges.length; i++) {
+                const r = ranges[i]
+                if (r.min != null && r.max != null && r.min === r.max && numValue === r.min) return i
+            }
+            // 2. Range match (min inclusive, max exclusive)
+            for (let i = 0; i < ranges.length; i++) {
+                const r = ranges[i]
+                const lo = r.min ?? -Infinity
+                const hi = r.max ?? Infinity
+                if (lo === hi && lo !== -Infinity) continue // skip already-checked exact matches
+                if (numValue >= lo && (hi === Infinity || numValue < hi)) return i
+            }
+            return -1
+        })()
+
+        const matchedScore = matchedIndex >= 0 ? ranges![matchedIndex].score : null
+        const hasValue = numValue !== null && !isNaN(numValue)
+
+        const rangeLabel = (r: { min?: number | null; max?: number | null }) => {
+            const u = question.unit ? ` ${question.unit}` : ""
+            if (r.min != null && r.max != null && r.min === r.max) return `= ${r.min}${u}`
+            if (r.min == null && r.max == null) return `Any value`
+            if (r.min == null) return `< ${r.max}${u}`
+            if (r.max == null) return `≥ ${r.min}${u}`
+            return `${r.min} – ${r.max}${u}`
+        }
+
+        return (
+            <div className="p-4 rounded-lg bg-background/50">
+                <label className="text-sm font-medium mb-2 block">{question.text}</label>
+                {question.helpText && (
+                    <p className="text-xs text-foreground/50 mb-2">{question.helpText}</p>
+                )}
+
+                {/* Input row */}
+                <div className="flex items-center gap-3">
+                    <div className="relative flex-1">
+                        <input
+                            type="number"
+                            step="any"
+                            value={currentAnswer ?? ""}
+                            onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                            placeholder="Enter value"
+                            className="w-full h-12 px-4 rounded-lg border border-foreground/20 bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                        />
+                        {question.unit && (
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-foreground/40 pointer-events-none">
+                                {question.unit}
+                            </span>
+                        )}
+                    </div>
+                    {/* Live score badge */}
+                    {hasValue && (
+                        <div className={`shrink-0 flex items-center justify-center h-12 px-4 rounded-lg border text-sm font-semibold ${
+                            matchedScore !== null
+                                ? "bg-primary/10 border-primary/30 text-primary"
+                                : "bg-foreground/5 border-foreground/15 text-foreground/40"
+                        }`}>
+                            {matchedScore !== null ? `${matchedScore} / ${question.maxScore} pts` : "0 pts"}
+                        </div>
+                    )}
+                </div>
+
+                {/* Scoring range hints */}
+                {ranges && ranges.length > 0 && (
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {ranges.map((r, i) => {
+                            const active = i === matchedIndex
+                            return (
+                                <span
+                                    key={i}
+                                    className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded transition-all ${
+                                        active
+                                            ? "bg-primary/15 text-primary font-medium border border-primary/25"
+                                            : "bg-foreground/[0.04] text-foreground/40 border border-transparent"
+                                    }`}
+                                >
+                                    {rangeLabel(r)}
+                                    <span className={`font-semibold ${active ? "text-primary" : "text-foreground/50"}`}>
+                                        → {r.score} pts
+                                    </span>
+                                </span>
+                            )
+                        })}
+                    </div>
                 )}
             </div>
-        </div>
-    )
+        )
+    }
 
     return (
         <div className="space-y-6">
-            {/* Q1: Investment Plan */}
-            <div className="glass rounded-xl p-6">
-                <h4 className="text-base font-semibold mb-4">1. Investment Plan</h4>
-                <YesNoQuestion
-                    id="hasInvestmentPlan"
-                    label="Are you ready with your investment plan?"
-                    value={formData.hasInvestmentPlan}
-                />
-            </div>
-
-            {/* Q2: Corporate Governance */}
-            <div className="glass rounded-xl p-6">
-                <h4 className="text-base font-semibold mb-4">2. About your company&apos;s Corporate Governance Structure</h4>
-                <div className="grid gap-4">
-                    <YesNoQuestion
-                        id="q2aGovernancePlan"
-                        label="A. Is the corporate governance plan in place with at least the requirements of Indian corporate listing norms?"
-                        value={formData.q2aGovernancePlan}
-                    />
-                    <YesNoQuestion
-                        id="q2bFinancialReporting"
-                        label="B. Does your financial reporting comply with statutory laws, rules, listing norms, accounting standards, etc.?"
-                        value={formData.q2bFinancialReporting}
-                    />
-                    <YesNoQuestion
-                        id="q2cControlSystems"
-                        label="C. Does your company have robust financial, operational, and internal control systems ensuring effective governance and risk management?"
-                        value={formData.q2cControlSystems}
-                    />
-                    <YesNoQuestion
-                        id="q2dShareholdingClear"
-                        label="D. Is your shareholding clear and transparent?"
-                        value={formData.q2dShareholdingClear}
-                    />
-                </div>
-            </div>
-
-            {/* Q3: Right Team */}
-            <div className="glass rounded-xl p-6">
-                <h4 className="text-base font-semibold mb-4">3. Do you have the right team?</h4>
-                <div className="grid gap-4">
-                    <YesNoQuestion
-                        id="q3aSeniorManagement"
-                        label="A. Does the company have a professional and well-qualified senior management team with industry experience and a good track record?"
-                        value={formData.q3aSeniorManagement}
-                    />
-                    <YesNoQuestion
-                        id="q3bIndependentBoard"
-                        label="B. Are there credible independent members on the board who add value to the company?"
-                        value={formData.q3bIndependentBoard}
-                    />
-                    <YesNoQuestion
-                        id="q3cMidManagement"
-                        label="C. Is there experienced staff at the mid-management level?"
-                        value={formData.q3cMidManagement}
-                    />
-                    <YesNoQuestion
-                        id="q3dKeyPersonnel"
-                        label="D. Are key personnel within the organization recognized as per accepted market practices, regulatory norms, and corporate governance requirements (e.g., compliance officer appointed)?"
-                        value={formData.q3dKeyPersonnel}
-                    />
-                </div>
-            </div>
-
-            {/* Q4-Q11: Financial Data */}
-            <div className="glass rounded-xl p-6">
-                <h4 className="text-base font-semibold mb-4">4-11. Financial Data</h4>
-                <div className="grid gap-4">
-                    <NumberInput
-                        id="q4PaidUpCapital"
-                        label="4. Enter the present paid-up capital of your company (in Crores)"
-                        value={formData.q4PaidUpCapital}
-                        unit="Cr"
-                        placeholder="e.g., 10"
-                    />
-                    <NumberInput
-                        id="q5OutstandingShares"
-                        label="5. Enter the number of shares outstanding"
-                        value={formData.q5OutstandingShares}
-                        placeholder="e.g., 1000000"
-                    />
-                    <NumberInput
-                        id="q6NetWorth"
-                        label="6. Enter your company's net worth (in Crores)"
-                        value={formData.q6NetWorth}
-                        unit="Cr"
-                        placeholder="e.g., 25"
-                    />
-                    <NumberInput
-                        id="q7Borrowings"
-                        label="7. Enter your company's short-term and long-term borrowings (in Crores)"
-                        value={formData.q7Borrowings}
-                        unit="Cr"
-                        placeholder="e.g., 5"
-                    />
-                    <NumberInput
-                        id="q8DebtEquityRatio"
-                        label="8. Enter your company's Debt–Equity Ratio"
-                        value={formData.q8DebtEquityRatio}
-                        placeholder="e.g., 0.5"
-                    />
-
-                    <div className="p-4 rounded-lg bg-background/50">
-                        <label className="text-sm font-medium mb-3 block">
-                            9. Enter your company&apos;s turnover for the last 3 years (in Crores)
-                        </label>
-                        <div className="grid grid-cols-3 gap-3">
-                            <div>
-                                <p className="text-xs text-foreground/50 mb-1">Year 1 (Latest)</p>
-                                <input
-                                    type="number"
-                                    step="any"
-                                    value={formData.q9TurnoverYear1 ?? ""}
-                                    onChange={(e) => handleChange("q9TurnoverYear1", e.target.value === "" ? null : parseFloat(e.target.value))}
-                                    className="w-full h-10 px-3 rounded-lg border border-foreground/20 bg-background"
-                                />
+            {Array.from(sections.entries()).map(([section, sectionQuestions]) => (
+                <div key={section} className="glass rounded-xl p-6">
+                    <h4 className="text-base font-semibold mb-4">{section}</h4>
+                    <div className="grid gap-4">
+                        {sectionQuestions.map((q) => (
+                            <div key={q.id}>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-xs font-bold text-primary">
+                                        Q{q.displayNumber}
+                                    </span>
+                                    <span className="text-xs text-foreground/40">
+                                        ({q.maxScore} pts)
+                                    </span>
+                                </div>
+                                {q.inputType === "boolean" ? (
+                                    <BooleanQuestion question={q} />
+                                ) : (
+                                    <NumberQuestion question={q} />
+                                )}
                             </div>
-                            <div>
-                                <p className="text-xs text-foreground/50 mb-1">Year 2</p>
-                                <input
-                                    type="number"
-                                    step="any"
-                                    value={formData.q9TurnoverYear2 ?? ""}
-                                    onChange={(e) => handleChange("q9TurnoverYear2", e.target.value === "" ? null : parseFloat(e.target.value))}
-                                    className="w-full h-10 px-3 rounded-lg border border-foreground/20 bg-background"
-                                />
-                            </div>
-                            <div>
-                                <p className="text-xs text-foreground/50 mb-1">Year 3</p>
-                                <input
-                                    type="number"
-                                    step="any"
-                                    value={formData.q9TurnoverYear3 ?? ""}
-                                    onChange={(e) => handleChange("q9TurnoverYear3", e.target.value === "" ? null : parseFloat(e.target.value))}
-                                    className="w-full h-10 px-3 rounded-lg border border-foreground/20 bg-background"
-                                />
-                            </div>
-                        </div>
+                        ))}
                     </div>
-
-                    <div className="p-4 rounded-lg bg-background/50">
-                        <label className="text-sm font-medium mb-3 block">
-                            10. Enter your company&apos;s EBITDA for the last 3 years (in Crores)
-                        </label>
-                        <div className="grid grid-cols-3 gap-3">
-                            <div>
-                                <p className="text-xs text-foreground/50 mb-1">Year 1 (Latest)</p>
-                                <input
-                                    type="number"
-                                    step="any"
-                                    value={formData.q10EbitdaYear1 ?? ""}
-                                    onChange={(e) => handleChange("q10EbitdaYear1", e.target.value === "" ? null : parseFloat(e.target.value))}
-                                    className="w-full h-10 px-3 rounded-lg border border-foreground/20 bg-background"
-                                />
-                            </div>
-                            <div>
-                                <p className="text-xs text-foreground/50 mb-1">Year 2</p>
-                                <input
-                                    type="number"
-                                    step="any"
-                                    value={formData.q10EbitdaYear2 ?? ""}
-                                    onChange={(e) => handleChange("q10EbitdaYear2", e.target.value === "" ? null : parseFloat(e.target.value))}
-                                    className="w-full h-10 px-3 rounded-lg border border-foreground/20 bg-background"
-                                />
-                            </div>
-                            <div>
-                                <p className="text-xs text-foreground/50 mb-1">Year 3</p>
-                                <input
-                                    type="number"
-                                    step="any"
-                                    value={formData.q10EbitdaYear3 ?? ""}
-                                    onChange={(e) => handleChange("q10EbitdaYear3", e.target.value === "" ? null : parseFloat(e.target.value))}
-                                    className="w-full h-10 px-3 rounded-lg border border-foreground/20 bg-background"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <NumberInput
-                        id="q11Eps"
-                        label="11. Enter your company's Earnings Per Share (EPS)"
-                        value={formData.q11Eps}
-                        unit="₹"
-                        placeholder="e.g., 15"
-                    />
                 </div>
-            </div>
+            ))}
 
             {/* Saving indicator */}
             {saving && (
@@ -847,7 +785,7 @@ export function AssessmentStepper({ assessment, leadId }: Props) {
     // Handle submit
     const handleSubmit = () => {
         startTransition(async () => {
-            const result = await submitPresetAssessment(assessment.id)
+            const result = await submitAssessment(assessment.id)
 
             if (result.success) {
                 toast.success(result.message || "Assessment submitted successfully!")
@@ -886,7 +824,7 @@ export function AssessmentStepper({ assessment, leadId }: Props) {
             )}
 
             {assessment.currentStep === 3 && (
-                <Step3PresetQuestionnaire
+                <Step3DynamicQuestionnaire
                     assessment={assessment}
                     onBack={handleBack}
                     onSubmit={handleSubmit}

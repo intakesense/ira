@@ -1,12 +1,12 @@
 "use server"
 
 /**
- * IRA Platform - New Assessment Server Actions
- * 
+ * IRA Platform - Assessment Server Actions
+ *
  * Stepper-based assessment flow:
  * Step 1: Company Verification (from Probe42)
  * Step 2: Financial Data Verification (from Probe42)
- * Step 3: Preset Questionnaire (11 questions)
+ * Step 3: Dynamic Questionnaire (from Question table)
  */
 
 import { revalidateTag } from "next/cache"
@@ -20,13 +20,8 @@ import { type ActionResponse } from "@/lib/types"
 import { Errors, AppError, ErrorCode } from "@/lib/errors"
 import { ZodError, z } from "zod"
 import type { Assessment } from "@prisma/client"
-import {
-    calculatePresetScore,
-    assessmentToPresetAnswers,
-    type ScoringResult
-} from "@/lib/scoring-algorithm"
-import { MAX_POSSIBLE_SCORE } from "@/lib/preset-questionnaire"
 import { sendAssessmentSubmittedEmail, getAppBaseUrl } from "@/lib/email"
+import { calculateAnswerScore, calculateDynamicScore, type DynamicScoringResult } from "@/lib/dynamic-scoring"
 
 // ============================================================================
 // Error Handler
@@ -114,31 +109,8 @@ const FinancialVerificationSchema = z.object({
     eps: z.number().optional(),
 })
 
-const PresetAnswersSchema = z.object({
-    hasInvestmentPlan: z.boolean().nullable().optional(),
-    q2aGovernancePlan: z.boolean().nullable().optional(),
-    q2bFinancialReporting: z.boolean().nullable().optional(),
-    q2cControlSystems: z.boolean().nullable().optional(),
-    q2dShareholdingClear: z.boolean().nullable().optional(),
-    q3aSeniorManagement: z.boolean().nullable().optional(),
-    q3bIndependentBoard: z.boolean().nullable().optional(),
-    q3cMidManagement: z.boolean().nullable().optional(),
-    q3dKeyPersonnel: z.boolean().nullable().optional(),
-    q4PaidUpCapital: z.number().nullable().optional(),
-    q5OutstandingShares: z.number().nullable().optional(),
-    q6NetWorth: z.number().nullable().optional(),
-    q7Borrowings: z.number().nullable().optional(),
-    q8DebtEquityRatio: z.number().nullable().optional(),
-    q9TurnoverYear1: z.number().nullable().optional(),
-    q9TurnoverYear2: z.number().nullable().optional(),
-    q9TurnoverYear3: z.number().nullable().optional(),
-    q10EbitdaYear1: z.number().nullable().optional(),
-    q10EbitdaYear2: z.number().nullable().optional(),
-    q10EbitdaYear3: z.number().nullable().optional(),
-    q11Eps: z.number().nullable().optional(),
-})
 
-// ============================================================================
+// ========================================i====================================
 // Read Operations
 // ============================================================================
 
@@ -194,6 +166,13 @@ export async function getAssessmentForStepper(
                         id: true,
                         name: true,
                         email: true,
+                    },
+                },
+                answers: {
+                    select: {
+                        questionId: true,
+                        answerValue: true,
+                        score: true,
                     },
                 },
             },
@@ -371,146 +350,15 @@ export async function verifyFinancialData(
 }
 
 // ============================================================================
-// Step 3: Preset Questionnaire
-// ============================================================================
-
-/**
- * Update preset questionnaire answers (auto-save)
- */
-export async function updatePresetAnswers(
-    assessmentId: string,
-    input: unknown
-): Promise<ActionResponse<Assessment>> {
-    try {
-        const session = await verifyAuth()
-        const validatedData = PresetAnswersSchema.parse(input)
-
-        const assessment = await prisma.assessment.findUnique({
-            where: { id: assessmentId },
-            include: { lead: true },
-        })
-
-        if (!assessment) {
-            throw Errors.assessmentNotFound(assessmentId)
-        }
-
-        // Only assigned assessor can update
-        if (
-            session.user.role === "ASSESSOR" &&
-            assessment.assessorId !== session.user.id
-        ) {
-            throw Errors.insufficientPermissions()
-        }
-
-        // Must have completed step 2
-        if (!assessment.financialVerified) {
-            throw new AppError(
-                ErrorCode.INVALID_INPUT,
-                "Please complete financial verification first",
-                400
-            )
-        }
-
-        // Can only update if DRAFT
-        if (assessment.status !== "DRAFT") {
-            throw new AppError(
-                ErrorCode.INVALID_INPUT,
-                "Cannot modify submitted assessment",
-                400
-            )
-        }
-
-        // Build update data - only include provided fields
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const updateData: Record<string, any> = {
-            updatedAt: new Date(),
-        }
-
-        if (validatedData.hasInvestmentPlan !== undefined) {
-            updateData.hasInvestmentPlan = validatedData.hasInvestmentPlan
-        }
-        if (validatedData.q2aGovernancePlan !== undefined) {
-            updateData.q2aGovernancePlan = validatedData.q2aGovernancePlan
-        }
-        if (validatedData.q2bFinancialReporting !== undefined) {
-            updateData.q2bFinancialReporting = validatedData.q2bFinancialReporting
-        }
-        if (validatedData.q2cControlSystems !== undefined) {
-            updateData.q2cControlSystems = validatedData.q2cControlSystems
-        }
-        if (validatedData.q2dShareholdingClear !== undefined) {
-            updateData.q2dShareholdingClear = validatedData.q2dShareholdingClear
-        }
-        if (validatedData.q3aSeniorManagement !== undefined) {
-            updateData.q3aSeniorManagement = validatedData.q3aSeniorManagement
-        }
-        if (validatedData.q3bIndependentBoard !== undefined) {
-            updateData.q3bIndependentBoard = validatedData.q3bIndependentBoard
-        }
-        if (validatedData.q3cMidManagement !== undefined) {
-            updateData.q3cMidManagement = validatedData.q3cMidManagement
-        }
-        if (validatedData.q3dKeyPersonnel !== undefined) {
-            updateData.q3dKeyPersonnel = validatedData.q3dKeyPersonnel
-        }
-        if (validatedData.q4PaidUpCapital !== undefined) {
-            updateData.q4PaidUpCapital = validatedData.q4PaidUpCapital
-        }
-        if (validatedData.q5OutstandingShares !== undefined) {
-            updateData.q5OutstandingShares = validatedData.q5OutstandingShares
-        }
-        if (validatedData.q6NetWorth !== undefined) {
-            updateData.q6NetWorth = validatedData.q6NetWorth
-        }
-        if (validatedData.q7Borrowings !== undefined) {
-            updateData.q7Borrowings = validatedData.q7Borrowings
-        }
-        if (validatedData.q8DebtEquityRatio !== undefined) {
-            updateData.q8DebtEquityRatio = validatedData.q8DebtEquityRatio
-        }
-        if (validatedData.q9TurnoverYear1 !== undefined) {
-            updateData.q9TurnoverYear1 = validatedData.q9TurnoverYear1
-        }
-        if (validatedData.q9TurnoverYear2 !== undefined) {
-            updateData.q9TurnoverYear2 = validatedData.q9TurnoverYear2
-        }
-        if (validatedData.q9TurnoverYear3 !== undefined) {
-            updateData.q9TurnoverYear3 = validatedData.q9TurnoverYear3
-        }
-        if (validatedData.q10EbitdaYear1 !== undefined) {
-            updateData.q10EbitdaYear1 = validatedData.q10EbitdaYear1
-        }
-        if (validatedData.q10EbitdaYear2 !== undefined) {
-            updateData.q10EbitdaYear2 = validatedData.q10EbitdaYear2
-        }
-        if (validatedData.q10EbitdaYear3 !== undefined) {
-            updateData.q10EbitdaYear3 = validatedData.q10EbitdaYear3
-        }
-        if (validatedData.q11Eps !== undefined) {
-            updateData.q11Eps = validatedData.q11Eps
-        }
-
-        const updatedAssessment = await prisma.assessment.update({
-            where: { id: assessmentId },
-            data: updateData,
-        })
-
-        return { success: true, data: updatedAssessment }
-    } catch (error) {
-        return handleActionError(handlePrismaError(error))
-    }
-}
-
-// ============================================================================
 // Submit Assessment
 // ============================================================================
 
 /**
- * Submit assessment with score calculation
+ * Submit assessment with dynamic scoring
  */
-export async function submitPresetAssessment(
+export async function submitAssessment(
     assessmentId: string
-): Promise<ActionResponse<{ assessment: Assessment; score: ScoringResult }>> {
+): Promise<ActionResponse<{ assessment: Assessment; score: DynamicScoringResult }>> {
     try {
         const session = await verifyAuth()
 
@@ -544,81 +392,74 @@ export async function submitPresetAssessment(
             throw Errors.insufficientPermissions()
         }
 
-        // Must have completed all steps
         if (!assessment.companyVerified) {
-            throw new AppError(
-                ErrorCode.INVALID_INPUT,
-                "Please complete company verification first",
-                400
-            )
+            throw new AppError(ErrorCode.INVALID_INPUT, "Please complete company verification first", 400)
         }
         if (!assessment.financialVerified) {
-            throw new AppError(
-                ErrorCode.INVALID_INPUT,
-                "Please complete financial verification first",
-                400
-            )
+            throw new AppError(ErrorCode.INVALID_INPUT, "Please complete financial verification first", 400)
         }
-
-        // Can only submit if DRAFT
         if (assessment.status !== "DRAFT") {
+            throw new AppError(ErrorCode.INVALID_INPUT, "Assessment already submitted", 400)
+        }
+
+        // Fetch active questions
+        const activeQuestions = await prisma.question.findMany({
+            where: { isActive: true },
+            orderBy: { order: "asc" },
+        })
+
+        // Fetch answers for this assessment
+        const dynamicAnswers = await prisma.assessmentAnswer.findMany({
+            where: { assessmentId },
+        })
+
+        // Validate all active questions have answers
+        const answeredIds = new Set(dynamicAnswers.map(a => a.questionId))
+        const unanswered = activeQuestions.filter(q => !answeredIds.has(q.id))
+        if (unanswered.length > 0) {
             throw new AppError(
                 ErrorCode.INVALID_INPUT,
-                "Assessment already submitted",
+                `Please answer all questions before submitting. ${unanswered.length} question(s) unanswered.`,
                 400
             )
         }
 
-        // Validate all required answers are present
-        if (
-            assessment.hasInvestmentPlan === null ||
-            assessment.q2aGovernancePlan === null ||
-            assessment.q2bFinancialReporting === null ||
-            assessment.q2cControlSystems === null ||
-            assessment.q2dShareholdingClear === null ||
-            assessment.q3aSeniorManagement === null ||
-            assessment.q3bIndependentBoard === null ||
-            assessment.q3cMidManagement === null ||
-            assessment.q3dKeyPersonnel === null ||
-            assessment.q4PaidUpCapital === null ||
-            assessment.q5OutstandingShares === null ||
-            assessment.q6NetWorth === null ||
-            assessment.q11Eps === null
-        ) {
-            throw new AppError(
-                ErrorCode.INVALID_INPUT,
-                "Please answer all required questions before submitting",
-                400
-            )
-        }
+        const dynamicResult = calculateDynamicScore(activeQuestions, dynamicAnswers)
 
-        // Calculate score
-        const presetAnswers = assessmentToPresetAnswers(assessment)
-        const scoringResult = calculatePresetScore(presetAnswers)
+        // Snapshot questions at submission time for permanent record
+        const questionsSnapshot = activeQuestions.map(q => ({
+            id: q.id,
+            text: q.text,
+            section: q.section,
+            displayNumber: q.displayNumber,
+            inputType: q.inputType,
+            options: q.options,
+            maxScore: q.maxScore,
+            unit: q.unit,
+            helpText: q.helpText,
+            order: q.order,
+        }))
 
-        // Update assessment with score and submit
         const updatedAssessment = await prisma.$transaction(async (tx) => {
             const updated = await tx.assessment.update({
                 where: { id: assessmentId },
                 data: {
                     status: "SUBMITTED",
                     submittedAt: new Date(),
-                    scoreBreakdown: scoringResult.breakdown,
-                    totalScore: scoringResult.totalScore,
-                    maxScore: MAX_POSSIBLE_SCORE,
-                    percentage: scoringResult.percentage,
-                    rating: scoringResult.rating,
+                    scoreBreakdown: JSON.parse(JSON.stringify(dynamicResult.breakdown)),
+                    totalScore: dynamicResult.totalScore,
+                    maxScore: dynamicResult.maxScore,
+                    percentage: dynamicResult.percentage,
+                    rating: dynamicResult.rating,
+                    questionsSnapshot: JSON.parse(JSON.stringify(questionsSnapshot)),
+                    usesDynamicQuestions: true,
                     updatedAt: new Date(),
                 },
             })
 
-            // Update lead status
             await tx.lead.update({
                 where: { id: assessment.lead.id },
-                data: {
-                    status: "IN_REVIEW",
-                    updatedAt: new Date(),
-                },
+                data: { status: "IN_REVIEW", updatedAt: new Date() },
             })
 
             return updated
@@ -631,13 +472,12 @@ export async function submitPresetAssessment(
             {
                 assessmentId,
                 leadDisplayId: assessment.lead.leadId,
-                totalScore: scoringResult.totalScore,
-                percentage: scoringResult.percentage,
-                rating: scoringResult.rating,
+                totalScore: dynamicResult.totalScore,
+                percentage: dynamicResult.percentage,
+                rating: dynamicResult.rating,
             }
         )
 
-        // Notify reviewers
         try {
             const reviewers = await prisma.user.findMany({
                 where: { role: "REVIEWER", isActive: true },
@@ -646,7 +486,6 @@ export async function submitPresetAssessment(
 
             if (reviewers.length > 0) {
                 const baseUrl = getAppBaseUrl()
-                // Send to first reviewer (sendBulkEmails can be used for multiple)
                 const firstReviewer = reviewers[0]
                 await sendAssessmentSubmittedEmail({
                     reviewerName: firstReviewer.name,
@@ -654,15 +493,14 @@ export async function submitPresetAssessment(
                     companyName: assessment.lead.companyName,
                     leadId: assessment.lead.leadId,
                     assessorName: assessment.assessor.name,
-                    totalScore: scoringResult.totalScore,
-                    percentage: scoringResult.percentage,
-                    rating: scoringResult.rating,
+                    totalScore: dynamicResult.totalScore,
+                    percentage: dynamicResult.percentage,
+                    rating: dynamicResult.rating,
                     actionUrl: `${baseUrl}/dashboard/reviews`,
                 })
             }
         } catch (emailError) {
             console.error("Failed to send notification emails:", emailError)
-            // Don't fail the submission if email fails
         }
 
         revalidateTag(`lead-${assessment.leadId}`, "hours")
@@ -670,8 +508,8 @@ export async function submitPresetAssessment(
 
         return {
             success: true,
-            data: { assessment: updatedAssessment, score: scoringResult },
-            message: `Assessment submitted with score: ${scoringResult.totalScore}/${MAX_POSSIBLE_SCORE} (${scoringResult.percentage.toFixed(1)}%)`,
+            data: { assessment: updatedAssessment, score: dynamicResult },
+            message: `Assessment submitted with score: ${dynamicResult.totalScore}/${dynamicResult.maxScore} (${dynamicResult.percentage.toFixed(1)}%)`,
         }
     } catch (error) {
         return handleActionError(handlePrismaError(error))
@@ -742,6 +580,75 @@ export async function goToStep(
         })
 
         return { success: true, data: updatedAssessment }
+    } catch (error) {
+        return handleActionError(handlePrismaError(error))
+    }
+}
+
+// ============================================================================
+// Dynamic Answer Saving
+// ============================================================================
+
+/**
+ * Save a dynamic questionnaire answer (auto-save per question)
+ */
+export async function saveDynamicAnswer(
+    assessmentId: string,
+    questionId: string,
+    answerValue: string
+): Promise<ActionResponse<void>> {
+    try {
+        const session = await verifyAuth()
+
+        const assessment = await prisma.assessment.findUnique({
+            where: { id: assessmentId },
+        })
+
+        if (!assessment) {
+            throw Errors.assessmentNotFound(assessmentId)
+        }
+
+        if (session.user.role === "ASSESSOR" && assessment.assessorId !== session.user.id) {
+            throw Errors.insufficientPermissions()
+        }
+
+        if (assessment.status !== "DRAFT") {
+            throw new AppError(ErrorCode.INVALID_INPUT, "Cannot modify submitted assessment", 400)
+        }
+
+        // Fetch the question to calculate score
+        const question = await prisma.question.findUnique({
+            where: { id: questionId },
+        })
+
+        if (!question) {
+            throw Errors.questionNotFound(questionId)
+        }
+
+        // Calculate score for this answer
+        const score = calculateAnswerScore(answerValue, question)
+
+        // Upsert the answer
+        await prisma.assessmentAnswer.upsert({
+            where: {
+                assessmentId_questionId: {
+                    assessmentId,
+                    questionId,
+                },
+            },
+            update: {
+                answerValue,
+                score,
+            },
+            create: {
+                assessmentId,
+                questionId,
+                answerValue,
+                score,
+            },
+        })
+
+        return { success: true, data: undefined }
     } catch (error) {
         return handleActionError(handlePrismaError(error))
     }

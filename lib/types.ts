@@ -78,6 +78,49 @@ export const ReorderQuestionsSchema = z.object({
 })
 
 // ============================================
+// DYNAMIC QUESTIONNAIRE SCHEMAS
+// ============================================
+
+export const BooleanOptionSchema = z.object({
+  label: z.string().min(1),
+  score: z.number().optional(),
+})
+
+export const NumberThresholdSchema = z.object({
+  min: z.number().nullable().optional(),
+  max: z.number().nullable().optional(),
+  score: z.number().min(0),
+})
+
+export const CreateDynamicQuestionSchema = z.object({
+  text: z.string().min(5, "Question text must be at least 5 characters").max(1000),
+  section: z.string().min(1, "Section is required").max(100),
+  displayNumber: z.string().min(1, "Display number is required").max(10),
+  helpText: z.string().max(1000).optional().nullable(),
+  inputType: z.enum(["boolean", "number"]),
+  options: z.any(), // Validated contextually based on inputType
+  maxScore: z.number().positive("Weightage must be positive"),
+  unit: z.string().max(50).optional().nullable(),
+})
+
+export const UpdateDynamicQuestionSchema = z.object({
+  text: z.string().min(5).max(1000).optional(),
+  section: z.string().min(1).max(100).optional(),
+  displayNumber: z.string().min(1).max(10).optional(),
+  helpText: z.string().max(1000).optional().nullable(),
+  inputType: z.enum(["boolean", "number"]).optional(),
+  options: z.any().optional(),
+  maxScore: z.number().positive().optional(),
+  unit: z.string().max(50).optional().nullable(),
+  isActive: z.boolean().optional(),
+})
+
+export const SaveDynamicAnswerSchema = z.object({
+  questionId: z.string().min(1),
+  answerValue: z.string().min(0),
+})
+
+// ============================================
 // ASSESSMENT SCHEMAS
 // ============================================
 
@@ -157,6 +200,10 @@ export type ApproveAssessmentInput = z.infer<typeof ApproveAssessmentSchema>
 export type RejectAssessmentInput = z.infer<typeof RejectAssessmentSchema>
 export type ReviewHistoryEntry = z.infer<typeof ReviewHistoryEntrySchema>
 export type ReviewHistory = z.infer<typeof ReviewHistorySchema>
+
+export type CreateDynamicQuestionInput = z.infer<typeof CreateDynamicQuestionSchema>
+export type UpdateDynamicQuestionInput = z.infer<typeof UpdateDynamicQuestionSchema>
+export type SaveDynamicAnswerInput = z.infer<typeof SaveDynamicAnswerSchema>
 
 // ============================================
 // UTILITY FUNCTIONS
@@ -246,6 +293,9 @@ export type LeadWithRelations = {
   probe42ReportDownloaded: boolean
   probe42ReportDownloadedAt: Date | null
   probe42ReportFailedAt: Date | null
+  probe42UpdateRequestId: string | null
+  probe42UpdateStatus: string | null
+  probe42UpdateRequestedAt: Date | null
   createdAt: Date
   updatedAt: Date
   createdById: string

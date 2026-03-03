@@ -47,6 +47,10 @@ export enum ErrorCode {
   RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED",
   NOT_FOUND = "NOT_FOUND",
   UNKNOWN_ERROR = "UNKNOWN_ERROR",
+
+  // Probe42-specific errors
+  COMPANY_INACTIVE = "COMPANY_INACTIVE",   // Error 8: company is inactive, stop all update calls
+  COMPANY_NOT_PROBED = "COMPANY_NOT_PROBED", // Error 18: not probed yet, call update() first
 }
 
 export class AppError extends Error {
@@ -243,6 +247,8 @@ export function getErrorMessage(error: AppError | ErrorCode | string): string {
     [ErrorCode.RATE_LIMIT_EXCEEDED]: "Rate limit exceeded. Please try again later",
     [ErrorCode.NOT_FOUND]: "Resource not found",
     [ErrorCode.UNKNOWN_ERROR]: "An unexpected error occurred",
+    [ErrorCode.COMPANY_INACTIVE]: "Company is inactive and cannot be refreshed",
+    [ErrorCode.COMPANY_NOT_PROBED]: "Company has not been probed yet. Trigger an update first",
   }
 
   return messages[code as ErrorCode] || "An error occurred"

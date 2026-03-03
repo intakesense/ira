@@ -73,6 +73,45 @@ export interface Probe42CompanyData {
 }
 
 // ============================================================================
+// LLP Response Type (Comprehensive Details)
+// ============================================================================
+
+export interface Probe42LLPData {
+  metadata: { api_version: string; last_updated: string }
+  data: {
+    llp: {
+      llpin: string
+      legal_name: string
+      efiling_status: string | null
+      incorporation_date: string | null
+      total_obligation_of_contribution: number
+      classification: string
+      email: string | null
+      registered_address: {
+        full_address?: string | null
+        city?: string | null
+        state?: string | null
+        pincode?: string | number | null
+      }
+      last_annual_returns_filed_date?: string | null
+      last_financial_reporting_date?: string | null
+    }
+    directors: Array<{
+      name: string
+      din: string | null
+      designation: string
+      date_of_appointment: string | null
+      date_of_cessation: string | null
+    }>
+  }
+}
+
+// Helper: LLPIN always contains a hyphen; CINs never do
+function isLLPIN(identifier: string): boolean {
+  return identifier.includes('-')
+}
+
+// ============================================================================
 // API Client
 // ============================================================================
 
@@ -133,6 +172,18 @@ class Probe42Client {
         }
 
         if (response.status === 404) {
+          // Distinguish Error 16 ("Company does not exist") from
+          // Error 18 ("CIN not probed yet — call update() first")
+          let bodyText = ''
+          try { bodyText = await response.text() } catch { /* ignore */ }
+          if (bodyText.toLowerCase().includes('not probed') || bodyText.toLowerCase().includes('probe request')) {
+            throw new AppError(
+              ErrorCode.COMPANY_NOT_PROBED,
+              `Company with CIN ${cin} has not been probed yet. Trigger an update first.`,
+              404,
+              { cin, body: bodyText }
+            )
+          }
           throw new AppError(
             ErrorCode.NOT_FOUND,
             `Company with CIN ${cin} not found in Probe42`,
@@ -252,6 +303,96 @@ class Probe42Client {
       apiVersion: data.metadata.api_version,
     }
   }
+
+  /**
+   * Fetch comprehensive LLP details by LLPIN
+   */
+  async getLLPDetails(llpin: string): Promise<Probe42LLPData> {
+    const url = `${this.baseUrl}/llps/${llpin}/comprehensive-details`
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'x-api-key': this.apiKey,
+          'Accept': 'application/json',
+          'x-api-version': this.apiVersion,
+        },
+        cache: 'no-store',
+      })
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          let bodyText = ''
+          try { bodyText = await response.text() } catch { /* ignore */ }
+          if (bodyText.toLowerCase().includes('not probed') || bodyText.toLowerCase().includes('probe request')) {
+            throw new AppError(
+              ErrorCode.COMPANY_NOT_PROBED,
+              `LLP with LLPIN ${llpin} has not been probed yet. Trigger an update first.`,
+              404,
+              { llpin, body: bodyText }
+            )
+          }
+          throw new AppError(ErrorCode.NOT_FOUND, `LLP with LLPIN ${llpin} not found in Probe42`, 404, { llpin })
+        }
+        throw new AppError(ErrorCode.EXTERNAL_API_ERROR, `Probe42 LLP API error: ${response.statusText}`, 502, { llpin })
+      }
+
+      return await response.json() as Probe42LLPData
+    } catch (error) {
+      if (error instanceof AppError) throw error
+      throw new AppError(ErrorCode.EXTERNAL_API_ERROR, 'Failed to fetch LLP data from Probe42', 502, {
+        originalError: error instanceof Error ? error.message : String(error), llpin
+      })
+    }
+  }
+
+  /**
+   * Extract key LLP info — same output shape as extractKeyInfo for unified handling
+   */
+  extractLLPKeyInfo(data: Probe42LLPData) {
+    const { llp, directors } = data.data
+
+    const activeDirectors = directors
+      ?.filter(d => !d.date_of_cessation)
+      .map(d => ({
+        name: d.name,
+        designation: d.designation,
+        din: d.din,
+        dateOfAppointment: d.date_of_appointment,
+      })) || []
+
+    const addr = llp.registered_address
+    const registeredAddress = (addr.full_address as string | undefined | null) ||
+      [addr.city, addr.state, addr.pincode].filter(Boolean).join(', ')
+
+    return {
+      cin: llp.llpin,
+      legalName: llp.legal_name,
+      status: llp.efiling_status || null,
+      incorporationDate: llp.incorporation_date,
+      classification: llp.classification,
+      paidUpCapital: null as number | null,
+      authorizedCapital: llp.total_obligation_of_contribution,
+      activeCompliance: llp.efiling_status || null,
+      lastAgmDate: llp.last_annual_returns_filed_date || null,
+      lastFilingDate: llp.last_financial_reporting_date || null,
+      pan: null as string | null,
+      email: llp.email,
+      website: null as string | null,
+      registeredAddress,
+      city: String(addr.city || ''),
+      state: String(addr.state || ''),
+      pincode: String(addr.pincode || ''),
+      businessDescription: undefined as string | undefined,
+      activeDirectorsCount: activeDirectors.length,
+      activeDirectors: activeDirectors.slice(0, 5),
+      latestFinancials: null as null,
+      gstRegistrationsCount: 0,
+      lastUpdated: data.metadata.last_updated,
+      apiVersion: data.metadata.api_version,
+    }
+  }
 }
 
 // ============================================================================
@@ -278,6 +419,146 @@ export async function fetchCompanyByCIN(cin: string) {
   const client = getProbe42Client()
   const data = await client.getCompanyDetails(cin)
   return client.extractKeyInfo(data)
+}
+
+/**
+ * Fetch comprehensive data for either a company (CIN) or LLP (LLPIN).
+ * Returns the same normalized shape as fetchCompanyByCIN.
+ */
+export async function fetchEntityByIdentifier(identifier: string) {
+  const client = getProbe42Client()
+  if (isLLPIN(identifier)) {
+    const data = await client.getLLPDetails(identifier)
+    return client.extractLLPKeyInfo(data)
+  }
+  const data = await client.getCompanyDetails(identifier)
+  return client.extractKeyInfo(data)
+}
+
+/**
+ * Check data status for a company — returns when data was last updated
+ * Returns null for last_details_updated if data has never been fetched / needs update
+ */
+export async function checkCompanyDataStatus(cin: string): Promise<{
+  last_fin_year_end: string | null
+  last_details_updated: string | null
+}> {
+  const client = getProbe42Client()
+  const entityPath = isLLPIN(cin) ? 'llps' : 'companies'
+  const url = `${client['baseUrl']}/${entityPath}/${cin}/datastatus`
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'x-api-key': client['apiKey'],
+        'Accept': 'application/json',
+        'x-api-version': client['apiVersion'],
+      },
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new AppError(ErrorCode.NOT_FOUND, `Company ${cin} not found`, 404, { cin })
+      }
+      throw new AppError(ErrorCode.EXTERNAL_API_ERROR, `Probe42 datastatus error: ${response.statusText}`, 502, { cin })
+    }
+
+    return await response.json()
+  } catch (error) {
+    if (error instanceof AppError) throw error
+    throw new AppError(ErrorCode.EXTERNAL_API_ERROR, 'Failed to check company data status', 502, {
+      originalError: error instanceof Error ? error.message : String(error), cin
+    })
+  }
+}
+
+/**
+ * Trigger an async data update for a company
+ * Probe42 will POST to postbackUrl when update completes (~4 working hours)
+ */
+export async function triggerProbe42Update(cin: string, postbackUrl: string): Promise<{
+  cin: string
+  request_id: string
+  status: 'REQUESTED'
+}> {
+  const client = getProbe42Client()
+  const entityPath = isLLPIN(cin) ? 'llps' : 'companies'
+  const url = `${client['baseUrl']}/${entityPath}/${cin}/update`
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'x-api-key': client['apiKey'],
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'x-api-version': client['apiVersion'],
+      },
+      body: JSON.stringify({ postback_url: postbackUrl }),
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      if (response.status === 422) {
+        // Error 8: "This Company/LLP is inactive" — stop all future update calls
+        // Error 9: "Changed CIN" — handled generically for now
+        let bodyText = ''
+        try { bodyText = await response.text() } catch { /* ignore */ }
+        if (bodyText.toLowerCase().includes('inactive')) {
+          throw new AppError(
+            ErrorCode.COMPANY_INACTIVE,
+            'Company is inactive. No further update calls should be made.',
+            422,
+            { cin, body: bodyText }
+          )
+        }
+      }
+      throw new AppError(ErrorCode.EXTERNAL_API_ERROR, `Probe42 update trigger error: ${response.statusText}`, 502, { cin })
+    }
+
+    return await response.json()
+  } catch (error) {
+    if (error instanceof AppError) throw error
+    throw new AppError(ErrorCode.EXTERNAL_API_ERROR, 'Failed to trigger Probe42 update', 502, {
+      originalError: error instanceof Error ? error.message : String(error), cin
+    })
+  }
+}
+
+/**
+ * Poll the status of a previously triggered update request
+ */
+export async function getProbe42UpdateStatus(cin: string, requestId: string): Promise<{
+  status: 'REQUESTED' | 'FULFILLED' | 'CANCELLED' | 'FAILED'
+}> {
+  const client = getProbe42Client()
+  const entityPath = isLLPIN(cin) ? 'llps' : 'companies'
+  const url = `${client['baseUrl']}/${entityPath}/${cin}/get-update-status?request_id=${encodeURIComponent(requestId)}`
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'x-api-key': client['apiKey'],
+        'Accept': 'application/json',
+        'x-api-version': client['apiVersion'],
+      },
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      throw new AppError(ErrorCode.EXTERNAL_API_ERROR, `Probe42 update status error: ${response.statusText}`, 502, { cin, requestId })
+    }
+
+    return await response.json()
+  } catch (error) {
+    if (error instanceof AppError) throw error
+    throw new AppError(ErrorCode.EXTERNAL_API_ERROR, 'Failed to get Probe42 update status', 502, {
+      originalError: error instanceof Error ? error.message : String(error), cin
+    })
+  }
 }
 
 /**

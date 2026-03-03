@@ -30,7 +30,7 @@ import {
 } from "@/lib/types"
 import { Errors, AppError, ErrorCode } from "@/lib/errors"
 import { ZodError } from "zod"
-import { fetchCompanyByCIN } from "@/lib/probe42"
+import { fetchEntityByIdentifier, checkCompanyDataStatus, triggerProbe42Update, getProbe42UpdateStatus } from "@/lib/probe42"
 import { sendLeadAssignmentEmail, getAppBaseUrl } from "@/lib/email"
 
 // ============================================
@@ -156,8 +156,41 @@ export async function createLead(
       leadId: lead.leadId,
     })
 
-    // 8. Probe42 PDF report download removed from background
-    // Users can manually download the report via the "Download Report" button in the UI
+    // 8. Auto-trigger Probe42 data update if the current data is stale.
+    //    Non-blocking: a failure here must never fail the lead creation.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    if (appUrl) {
+      try {
+        const dataStatus = await checkCompanyDataStatus(validatedData.cin)
+        console.log(`[Probe42] datastatus for ${validatedData.cin}:`, dataStatus)
+
+        if (!dataStatus.last_details_updated) {
+          const postbackUrl = `${appUrl}/api/probe42/callback`
+          const updateResult = await triggerProbe42Update(validatedData.cin, postbackUrl)
+          console.log(`[Probe42] update triggered for ${validatedData.cin} → request_id: ${updateResult.request_id}`)
+
+          await prisma.lead.update({
+            where: { id: lead.id },
+            data: {
+              probe42UpdateRequestId: updateResult.request_id,
+              probe42UpdateStatus: 'REQUESTED',
+              probe42UpdateRequestedAt: new Date(),
+            },
+          })
+          await createAuditLog(session.user.id, 'PROBE42_UPDATE_REQUESTED', lead.id, {
+            cin: validatedData.cin,
+            requestId: updateResult.request_id,
+            triggeredDuring: 'lead_creation',
+          })
+        } else {
+          console.log(`[Probe42] data is current for ${validatedData.cin} (last updated: ${dataStatus.last_details_updated}), no update needed`)
+        }
+      } catch (updateErr) {
+        console.error('[createLead] Probe42 update check failed:', updateErr)
+      }
+    } else {
+      console.warn('[createLead] NEXT_PUBLIC_APP_URL not set — skipping Probe42 update check')
+    }
 
     // 9. Next.js 16: Use updateTag for immediate cache refresh
     updateTag(`lead-${lead.id}`)
@@ -487,47 +520,30 @@ export async function assignAssessor(
             assessorId: validatedData.assessorId,
             status: "DRAFT",
             currentStep: 1,
-            // New fields are initialized with defaults by Prisma
+            usesDynamicQuestions: true, // New assessments use dynamic questions
           },
         })
       } else {
+        // Delete old dynamic answers if reassigning
+        await tx.assessmentAnswer.deleteMany({
+          where: { assessmentId: lead.assessment.id },
+        })
+
         // Update existing assessment's assessor and reset for new stepper flow
         await tx.assessment.update({
           where: { id: lead.assessment.id },
           data: {
             assessorId: validatedData.assessorId,
-            // Reset if reassigning to different assessor
             status: "DRAFT",
             currentStep: 1,
+            usesDynamicQuestions: true,
+            questionsSnapshot: Prisma.DbNull,
             companyVerified: false,
             companyVerifiedAt: null,
             companyDataSnapshot: Prisma.DbNull,
             financialVerified: false,
             financialVerifiedAt: null,
             financialDataSnapshot: Prisma.DbNull,
-            // Reset all preset question answers
-            hasInvestmentPlan: null,
-            q2aGovernancePlan: null,
-            q2bFinancialReporting: null,
-            q2cControlSystems: null,
-            q2dShareholdingClear: null,
-            q3aSeniorManagement: null,
-            q3bIndependentBoard: null,
-            q3cMidManagement: null,
-            q3dKeyPersonnel: null,
-            q4PaidUpCapital: null,
-            q5OutstandingShares: null,
-            q6NetWorth: null,
-            q7Borrowings: null,
-            q8DebtEquityRatio: null,
-            q9TurnoverYear1: null,
-            q9TurnoverYear2: null,
-            q9TurnoverYear3: null,
-            q10EbitdaYear1: null,
-            q10EbitdaYear2: null,
-            q10EbitdaYear3: null,
-            q11Eps: null,
-            // Reset scoring
             scoreBreakdown: Prisma.DbNull,
             totalScore: null,
             maxScore: null,
@@ -667,20 +683,26 @@ export async function getAssessors(): Promise<
 }
 
 /**
- * Fetch company data from Probe42 API and store in Lead
- * ✅ Fetches comprehensive company details by CIN
- * ✅ Stores key fields in Lead model for quick access
- * ✅ Stores full response in JSON field for reference
- * ✅ Creates audit log entry
+ * Fetch / refresh company data from Probe42 API for a lead.
+ *
+ * Full workflow per Probe42 docs:
+ * 1. If an update is already REQUESTED → poll get-update-status
+ *    - FULFILLED  → fetch comprehensive data and store it
+ *    - REQUESTED  → still waiting, return updatePending flag
+ *    - CANCELLED  → clear update fields, re-trigger fresh fetch cycle
+ * 2. Otherwise → check datastatus
+ *    - Data is fresh → fetch comprehensive details directly (fast path)
+ *    - Data is stale / never updated → trigger async update (POST /update),
+ *      store request_id, return updatePending flag
  */
 export async function fetchProbe42Data(
   leadId: string
-): Promise<ActionResponse<LeadWithRelations>> {
+): Promise<ActionResponse<LeadWithRelations & { updatePending?: boolean }>> {
   try {
     // 1. Verify auth
     const session = await verifyAuth()
 
-    // 2. Fetch lead with CIN
+    // 2. Fetch lead
     const lead = await prisma.lead.findUnique({
       where: { id: leadId },
       select: {
@@ -688,7 +710,9 @@ export async function fetchProbe42Data(
         cin: true,
         companyName: true,
         probe42Fetched: true,
-        probe42FetchedAt: true
+        probe42FetchedAt: true,
+        probe42UpdateRequestId: true,
+        probe42UpdateStatus: true,
       },
     })
 
@@ -696,10 +720,128 @@ export async function fetchProbe42Data(
       throw Errors.leadNotFound(leadId)
     }
 
-    // 3. Fetch company data from Probe42
-    const companyData = await fetchCompanyByCIN(lead.cin)
+    // ---------------------------------------------------------------
+    // Branch A: An update request is already in flight
+    // ---------------------------------------------------------------
+    if (lead.probe42UpdateStatus === 'REQUESTED' && lead.probe42UpdateRequestId) {
+      const statusResult = await getProbe42UpdateStatus(lead.cin, lead.probe42UpdateRequestId)
+      console.log(`[Probe42] get-update-status for ${lead.cin} (${lead.probe42UpdateRequestId}): ${statusResult.status}`)
 
-    // 4. Update lead with Probe42 data
+      if (statusResult.status === 'REQUESTED') {
+        // Still waiting — return the current lead data with a pending flag
+        const currentLead = await prisma.lead.findUnique({
+          where: { id: leadId },
+          include: leadInclude,
+        })
+        return { success: true, data: { ...currentLead!, updatePending: true } }
+      }
+
+      if (statusResult.status === 'CANCELLED' || statusResult.status === 'FAILED') {
+        console.log(`[Probe42] update ${statusResult.status} for ${lead.cin}, clearing request`)
+        // Clear the failed/cancelled request so we can try again below
+        await prisma.lead.update({
+          where: { id: leadId },
+          data: { probe42UpdateStatus: statusResult.status, probe42UpdateRequestId: null },
+        })
+      }
+      // FULFILLED → fall through to fetch comprehensive data
+    }
+
+    // ---------------------------------------------------------------
+    // Branch B: Check whether data is fresh or needs an update
+    // ---------------------------------------------------------------
+    let needsUpdate = false
+    try {
+      const dataStatus = await checkCompanyDataStatus(lead.cin)
+      console.log(`[Probe42] datastatus for ${lead.cin}:`, dataStatus)
+      needsUpdate = !dataStatus.last_details_updated
+    } catch (err) {
+      if (err instanceof AppError) {
+        // Real API error (e.g. 404 company not found) — re-throw, don't fall through
+        throw err
+      }
+      // Transient network error — fall back to direct fetch as best effort
+      console.warn(`[Probe42] datastatus network error for ${lead.cin}, falling back to direct fetch:`, err)
+      needsUpdate = false
+    }
+
+    if (needsUpdate) {
+      // Trigger async update — Probe42 will callback when done
+      const postbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/probe42/callback`
+      let updateResult: { cin: string; request_id: string; status: 'REQUESTED' }
+      try {
+        updateResult = await triggerProbe42Update(lead.cin, postbackUrl)
+      } catch (err) {
+        if (err instanceof AppError && err.code === ErrorCode.COMPANY_INACTIVE) {
+          // Error 8: company is inactive — mark and stop all future update calls
+          console.warn(`[Probe42] company ${lead.cin} is inactive, marking probe42UpdateStatus=INACTIVE`)
+          const inactiveLead = await prisma.lead.update({
+            where: { id: leadId },
+            data: { probe42UpdateStatus: 'INACTIVE', probe42UpdateRequestId: null },
+            include: leadInclude,
+          })
+          updateTag(`lead-${leadId}`)
+          return { success: false, error: 'Company is inactive. Probe42 data cannot be refreshed for inactive companies.', code: ErrorCode.COMPANY_INACTIVE }
+        }
+        throw err
+      }
+      console.log(`[Probe42] update triggered for ${lead.cin} → request_id: ${updateResult.request_id}`)
+
+      const updatedLead = await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          probe42UpdateRequestId: updateResult.request_id,
+          probe42UpdateStatus: 'REQUESTED',
+          probe42UpdateRequestedAt: new Date(),
+        },
+        include: leadInclude,
+      })
+
+      await createAuditLog(session.user.id, 'PROBE42_UPDATE_REQUESTED', leadId, {
+        cin: lead.cin,
+        requestId: updateResult.request_id,
+        postbackUrl,
+      })
+
+      updateTag(`lead-${leadId}`)
+      return { success: true, data: { ...updatedLead, updatePending: true } }
+    }
+
+    console.log(`[Probe42] data is current for ${lead.cin}, fetching comprehensive details directly`)
+
+    // ---------------------------------------------------------------
+    // Fast path: Data is fresh (or update just completed) — fetch now
+    // ---------------------------------------------------------------
+    let companyData: Awaited<ReturnType<typeof fetchEntityByIdentifier>>
+    try {
+      companyData = await fetchEntityByIdentifier(lead.cin)
+    } catch (err) {
+      if (err instanceof AppError && err.code === ErrorCode.COMPANY_NOT_PROBED) {
+        // Error 18: company exists in datastatus but hasn't been probed for comprehensive data yet
+        // Trigger an update — this shouldn't happen in normal flow but is a safety net
+        console.warn(`[Probe42] company ${lead.cin} not probed yet (Error 18), triggering update`)
+        const postbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/probe42/callback`
+        const updateResult = await triggerProbe42Update(lead.cin, postbackUrl)
+        const updatedLead = await prisma.lead.update({
+          where: { id: leadId },
+          data: {
+            probe42UpdateRequestId: updateResult.request_id,
+            probe42UpdateStatus: 'REQUESTED',
+            probe42UpdateRequestedAt: new Date(),
+          },
+          include: leadInclude,
+        })
+        await createAuditLog(session.user.id, 'PROBE42_UPDATE_REQUESTED', leadId, {
+          cin: lead.cin,
+          requestId: updateResult.request_id,
+          trigger: 'error18_not_probed',
+        })
+        updateTag(`lead-${leadId}`)
+        return { success: true, data: { ...updatedLead, updatePending: true } }
+      }
+      throw err
+    }
+
     const updatedLead = await prisma.lead.update({
       where: { id: leadId },
       data: {
@@ -716,32 +858,114 @@ export async function fetchProbe42Data(
         probe42ComplianceStatus: companyData.activeCompliance,
         probe42DirectorCount: companyData.activeDirectorsCount,
         probe42GstCount: companyData.gstRegistrationsCount,
-        probe42Data: JSON.parse(JSON.stringify(companyData)), // Store full response as JSON
+        probe42Data: JSON.parse(JSON.stringify(companyData)),
+        // Clear any previous update tracking
+        probe42UpdateStatus: 'FULFILLED',
+        probe42UpdateRequestId: null,
       },
       include: leadInclude,
     })
 
-    // 5. Create audit log
-    await createAuditLog(
-      session.user.id,
-      "PROBE42_DATA_FETCHED",
-      leadId,
-      {
-        cin: lead.cin,
-        companyName: companyData.legalName,
-        status: companyData.status,
-        fetchedAt: new Date().toISOString(),
-      }
-    )
+    await createAuditLog(session.user.id, 'PROBE42_DATA_FETCHED', leadId, {
+      cin: lead.cin,
+      companyName: companyData.legalName,
+      status: companyData.status,
+      fetchedAt: new Date().toISOString(),
+    })
 
-    // 6. Next.js 16: Use updateTag for immediate cache refresh
     updateTag(`lead-${leadId}`)
-    revalidateTag("leads-list", "hours")
+    revalidateTag('leads-list', 'hours')
 
-    return {
-      success: true,
-      data: updatedLead,
+    return { success: true, data: updatedLead }
+  } catch (error) {
+    return handleActionError(handlePrismaError(error))
+  }
+}
+
+/**
+ * Manually poll the status of an in-flight Probe42 update.
+ * Called by the "Check Status" button in Probe42DataCard.
+ *
+ * - REQUESTED  → data not ready yet, return pending state
+ * - FULFILLED  → fetch comprehensive data and update lead
+ * - CANCELLED  → clear update fields, return cancelled info
+ */
+export async function checkProbe42UpdateStatus(
+  leadId: string
+): Promise<ActionResponse<LeadWithRelations & { updatePending?: boolean; updateCancelled?: boolean }>> {
+  try {
+    const session = await verifyAuth()
+
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: {
+        id: true,
+        cin: true,
+        probe42UpdateRequestId: true,
+        probe42UpdateStatus: true,
+      },
+    })
+
+    if (!lead) throw Errors.leadNotFound(leadId)
+
+    if (!lead.probe42UpdateRequestId) {
+      throw new AppError(ErrorCode.INVALID_INPUT, 'No pending update request found for this lead', 400, { leadId })
     }
+
+    const statusResult = await getProbe42UpdateStatus(lead.cin, lead.probe42UpdateRequestId)
+
+    if (statusResult.status === 'REQUESTED') {
+      const currentLead = await prisma.lead.findUnique({ where: { id: leadId }, include: leadInclude })
+      return { success: true, data: { ...currentLead!, updatePending: true } }
+    }
+
+    if (statusResult.status === 'CANCELLED' || statusResult.status === 'FAILED') {
+      const updatedLead = await prisma.lead.update({
+        where: { id: leadId },
+        data: { probe42UpdateStatus: statusResult.status, probe42UpdateRequestId: null },
+        include: leadInclude,
+      })
+      await createAuditLog(session.user.id, 'PROBE42_UPDATE_CANCELLED', leadId, { cin: lead.cin, status: statusResult.status })
+      updateTag(`lead-${leadId}`)
+      return { success: true, data: { ...updatedLead, updateCancelled: true } }
+    }
+
+    // FULFILLED — fetch the updated data
+    const companyData = await fetchEntityByIdentifier(lead.cin)
+
+    const updatedLead = await prisma.lead.update({
+      where: { id: leadId },
+      data: {
+        probe42Fetched: true,
+        probe42FetchedAt: new Date(),
+        probe42LegalName: companyData.legalName,
+        probe42Status: companyData.status,
+        probe42Classification: companyData.classification,
+        probe42PaidUpCapital: companyData.paidUpCapital,
+        probe42AuthCapital: companyData.authorizedCapital,
+        probe42Pan: companyData.pan,
+        probe42Website: companyData.website,
+        probe42IncorpDate: companyData.incorporationDate ? new Date(companyData.incorporationDate) : null,
+        probe42ComplianceStatus: companyData.activeCompliance,
+        probe42DirectorCount: companyData.activeDirectorsCount,
+        probe42GstCount: companyData.gstRegistrationsCount,
+        probe42Data: JSON.parse(JSON.stringify(companyData)),
+        probe42UpdateStatus: 'FULFILLED',
+        probe42UpdateRequestId: null,
+      },
+      include: leadInclude,
+    })
+
+    await createAuditLog(session.user.id, 'PROBE42_DATA_FETCHED', leadId, {
+      cin: lead.cin,
+      companyName: companyData.legalName,
+      via: 'manual_status_check',
+    })
+
+    updateTag(`lead-${leadId}`)
+    revalidateTag('leads-list', 'hours')
+
+    return { success: true, data: updatedLead }
   } catch (error) {
     return handleActionError(handlePrismaError(error))
   }
