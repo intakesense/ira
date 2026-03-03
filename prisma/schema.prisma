@@ -184,6 +184,10 @@ model Lead {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  //Payment link
+  paymentLink     String?
+  paymentLinkSentAt DateTime?
+  
   @@index([status])
   @@index([assignedAssessorId])
   @@index([createdById])

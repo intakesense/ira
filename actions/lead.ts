@@ -928,6 +928,7 @@ export async function forceRefetchProbe42Data(
 // Update lead status to payment_pending
 export async function updateLeadStatusOnPaymentLink(
   leadId: string,
+  paymentLink: string,
 ): Promise<ActionResponse<void>> {
   try {
     const session = await verifyAuth();
@@ -942,7 +943,10 @@ export async function updateLeadStatusOnPaymentLink(
 
     await prisma.lead.update({
       where: { id: lead.id },
-      data: { status: LeadStatus.PAYMENT_PENDING },
+      data: {
+        status: LeadStatus.PAYMENT_PENDING,
+        paymentLink,
+      },
     });
 
     await createAuditLog(session.user.id, "LEAD_STATUS_UPDATED", lead.id, {
@@ -996,21 +1000,21 @@ export async function updateLeadStatusToComplete(
 }
 
 /**
- * 
- * @param leadId 
- * @returns 
+ *
+ * @param leadId
+ * @returns
  */
 export async function sendClientPortalAccess(
-  leadId: string
+  leadId: string,
 ): Promise<ActionResponse<void>> {
   try {
-    const session = await verifyAuth()
+    const session = await verifyAuth();
 
     const lead = await prisma.lead.findUnique({
       where: { leadId },
-    })
+    });
 
-    if (!lead) throw Errors.leadNotFound(leadId)
+    if (!lead) throw Errors.leadNotFound(leadId);
 
     // Send email with CIN and login URL
     await sendClientCredentialsEmail({
@@ -1019,13 +1023,21 @@ export async function sendClientPortalAccess(
       companyName: lead.companyName,
       cin: lead.cin,
       loginUrl: `${getAppBaseUrl()}/client-portal/login`,
-    })
+    });
 
-    revalidatePath(`/dashboard/leads/${leadId}`)
-    revalidatePath("/dashboard/leads")
+    revalidatePath(`/dashboard/leads/${leadId}`);
+    revalidatePath("/dashboard/leads");
 
-    return { success: true, data: undefined }
+    return { success: true, data: undefined };
   } catch (error) {
-    return handleActionError(error)
+    return handleActionError(error);
   }
+}
+
+export async function savePaymentLinkSentAt(leadId: string, sentAt: Date) {
+  await prisma.lead.update({
+    where: { leadId },
+    data: { paymentLinkSentAt: sentAt },
+  });
+  revalidatePath(`/dashboard/leads/${leadId}`);
 }

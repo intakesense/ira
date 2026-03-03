@@ -56,6 +56,7 @@ interface Theme {
   accentBorder: string;
   text: string;
   textMuted: string;
+  logoText: string;
   textDim: string;
   sidebar: string;
   badge: string;
@@ -115,6 +116,7 @@ const themes: Record<string, Theme> = {
     accentBorder: "#2563eb40",
     // text: "#111827",
     // textMuted: "#7a9cc4",
+    logoText:"#ffffff",
     textDim: "#3d6190",
     sidebar: "#1e293b",
     badge: "#1d4ed8",
@@ -131,6 +133,7 @@ const themes: Record<string, Theme> = {
     accentBorder: "#818cf840",
     // text: "#e2e8f0",
     // textMuted: "#94a3b8",
+    logoText:"#ffffff",
     textDim: "#475569",
     sidebar: "#0b0d14",
     badge: "#6366f1",
@@ -147,6 +150,7 @@ const themes: Record<string, Theme> = {
     accentBorder: "#10b98140",
     // text: "#d1fae5",
     // textMuted: "#6ee7b7",
+    logoText:"#ffffff",
     textDim: "#2d6a4f",
     sidebar: "#050f0b",
     badge: "#059669",
@@ -163,6 +167,7 @@ const themes: Record<string, Theme> = {
     accentBorder: "#fb718540",
     // text: "#ffe4e6",
     // textMuted: "#fda4af",
+    logoText:"#ffffff",
     textDim: "#9f1239",
     sidebar: "#110508",
     badge: "#e11d48",
@@ -179,8 +184,9 @@ const themes: Record<string, Theme> = {
     accentBorder: "#0369a130",
     // text: "#0f172a",
     // textMuted: "#475569",
+    logoText:"#000000",
     textDim: "#94a3b8",
-    sidebar: "#ffffff",
+    sidebar: "#0369a130",
     badge: "#0369a1",
     success: "#059669",
     warning: "#d97706",
@@ -195,8 +201,9 @@ const themes: Record<string, Theme> = {
     accentBorder: "#b4530930",
     // text: "#1c1917",
     // textMuted: "#78716c",
+    logoText:"#000000",
     textDim: "#a8a29e",
-    sidebar: "#ffffff",
+    sidebar: "#b4530930",
     badge: "#b45309",
     success: "#15803d",
     warning: "#d97706",
@@ -1803,7 +1810,7 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
                   style={{
                     fontSize: 13,
                     fontWeight: 700,
-                    color: t.bg,
+                    color: t.logoText,
                     whiteSpace: "nowrap",
                   }}
                 >

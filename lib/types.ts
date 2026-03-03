@@ -249,6 +249,8 @@ export type LeadWithRelations = {
   createdAt: Date
   updatedAt: Date
   createdById: string
+  paymentLink: string | null        
+  paymentLinkSentAt: Date | null 
 }
 
 // ============================================

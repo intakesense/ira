@@ -383,6 +383,9 @@ export default async function LeadDetailPage(props: Props) {
             email={lead.email}
             name={lead.contactPerson}
             leadId={lead.leadId}
+            status={lead.status}
+            savedPaymentLink={lead.paymentLink ?? ""} // ← from DB
+            savedSentAt={lead.paymentLinkSentAt ?? null}
           />
           {/* Mark Complete & Send Access — shown when payment is pending */}
           {lead.status === "COMPLETED" && (

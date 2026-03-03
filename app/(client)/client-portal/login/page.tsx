@@ -81,7 +81,7 @@ function OTPInput({
   disabled: boolean;
 }) {
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
-const digits = Array.from({ length: 6 }, (_, i) => value?.[i] ?? "");
+const digits = (value ?? "").padEnd(6, "\0").split("").slice(0, 6).map(c => c === "\0" ? "" : c);
   const handleChange = (i: number, v: string) => {
     if (!/^\d*$/.test(v)) return;
     const newDigits = [...digits];
@@ -118,7 +118,7 @@ const digits = Array.from({ length: 6 }, (_, i) => value?.[i] ?? "");
           type="text"
           inputMode="numeric"
           maxLength={1}
-          value={digits[i] ?? ""}
+          value={digits[i] || ""}
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
@@ -159,12 +159,13 @@ export default function ClientPortalLoginPage() {
   const cinRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-  const timer = setTimeout(() => {
-    cinRef.current?.focus();
-  }, 600);
+    setMounted(true); // ← add this line
+    const timer = setTimeout(() => {
+      cinRef.current?.focus();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
 
-  return () => clearTimeout(timer);
-}, []);
   useEffect(() => {
     if (resendTimer > 0) {
       const t = setTimeout(() => setResendTimer((r) => r - 1), 1000);
