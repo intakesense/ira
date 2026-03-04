@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect, CSSProperties, useRef } from "react";
-
+import { useRouter } from "next/navigation";
 // ─── Lead Data Type ───────────────────────────────────────────────────────────
 interface LeadData {
+  leadDbId: string;
   companyName: string;
   contactPerson: string;
   cin: string;
@@ -36,6 +37,7 @@ interface LeadData {
     fileName: string;
     fileUrl: string;
     fileSize: number;
+    fileType: string;
     uploadedAt: Date;
   }>;
   assignedAssessor: {
@@ -116,7 +118,7 @@ const themes: Record<string, Theme> = {
     accentBorder: "#2563eb40",
     // text: "#111827",
     // textMuted: "#7a9cc4",
-    logoText:"#ffffff",
+    logoText: "#ffffff",
     textDim: "#3d6190",
     sidebar: "#1e293b",
     badge: "#1d4ed8",
@@ -133,7 +135,7 @@ const themes: Record<string, Theme> = {
     accentBorder: "#818cf840",
     // text: "#e2e8f0",
     // textMuted: "#94a3b8",
-    logoText:"#ffffff",
+    logoText: "#ffffff",
     textDim: "#475569",
     sidebar: "#0b0d14",
     badge: "#6366f1",
@@ -150,7 +152,7 @@ const themes: Record<string, Theme> = {
     accentBorder: "#10b98140",
     // text: "#d1fae5",
     // textMuted: "#6ee7b7",
-    logoText:"#ffffff",
+    logoText: "#ffffff",
     textDim: "#2d6a4f",
     sidebar: "#050f0b",
     badge: "#059669",
@@ -167,7 +169,7 @@ const themes: Record<string, Theme> = {
     accentBorder: "#fb718540",
     // text: "#ffe4e6",
     // textMuted: "#fda4af",
-    logoText:"#ffffff",
+    logoText: "#ffffff",
     textDim: "#9f1239",
     sidebar: "#110508",
     badge: "#e11d48",
@@ -184,7 +186,7 @@ const themes: Record<string, Theme> = {
     accentBorder: "#0369a130",
     // text: "#0f172a",
     // textMuted: "#475569",
-    logoText:"#000000",
+    logoText: "#000000",
     textDim: "#94a3b8",
     sidebar: "#0369a130",
     badge: "#0369a1",
@@ -201,7 +203,7 @@ const themes: Record<string, Theme> = {
     accentBorder: "#b4530930",
     // text: "#1c1917",
     // textMuted: "#78716c",
-    logoText:"#000000",
+    logoText: "#000000",
     textDim: "#a8a29e",
     sidebar: "#b4530930",
     badge: "#b45309",
@@ -1270,110 +1272,270 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
   );
 
   // ── Documents ─────────────────────────────────────────────────────────────
+  const router = useRouter();
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    const allowed = [
+      "application/pdf",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ];
+    if (!allowed.includes(file.type)) {
+      setUploadError("Only PDF and Excel files are allowed.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError("File too large. Max 10MB.");
+      return;
+    }
+    setUploading(true);
+    setUploadError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("leadId", lead.leadDbId);
+
+      const res = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      router.refresh();
+    } catch (err: any) {
+      setUploadError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
   const renderDocuments = () => (
-    <div style={card}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 20,
+          ...card,
+          border: `2px dashed ${dragOver ? t.accent : t.accentBorder}`,
+          background: dragOver ? t.accentSoft : t.bgCard,
+          transition: "all 0.2s",
+          cursor: "pointer",
         }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          handleUpload(e.dataTransfer.files);
+        }}
+        onClick={() => fileInputRef.current?.click()}
       >
-        <div
-          style={{
-            fontSize: 18,
-            fontWeight: 700,
-            color: t.text,
-            fontFamily: "'Playfair Display', Georgia, serif",
-          }}
-        >
-          Documents
-        </div>
-        <span style={{ fontSize: 12, color: t.textMuted }}>
-          {lead.documents.length} files
-        </span>
-      </div>
-
-      {lead.documents.length === 0 ? (
-        <div
-          style={{
-            padding: 32,
-            borderRadius: 12,
-            background: t.bgHover,
-            border: `2px dashed ${t.accentBorder}`,
-            textAlign: "center",
-          }}
-        >
-          <Icon d={icons.docs} size={32} />
-          <div style={{ marginTop: 10, fontSize: 13, color: t.textMuted }}>
-            No documents uploaded yet
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.xls,.xlsx"
+          style={{ display: "none" }}
+          onChange={(e) => handleUpload(e.target.files)}
+        />
+        <div style={{ textAlign: "center", padding: "8px 0" }}>
+          <div style={{ color: t.accent, marginBottom: 8 }}>
+            <Icon d={icons.upload} size={32} />
           </div>
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {lead.documents.map((doc) => (
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: t.text,
+              marginBottom: 4,
+            }}
+          >
+            {uploading ? "Uploading..." : "Drop file here or click to browse"}
+          </div>
+          <div style={{ fontSize: 12, color: t.textMuted }}>
+            PDF or Excel · Max 10MB
+          </div>
+          {uploading && (
             <div
-              key={doc.id}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 14,
-                padding: "12px 16px",
-                borderRadius: 10,
+                marginTop: 12,
+                height: 4,
+                borderRadius: 2,
                 background: t.bgHover,
-                border: `1px solid ${t.accentBorder}`,
+                overflow: "hidden",
               }}
             >
               <div
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: t.accentSoft,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: t.accent,
+                  height: "100%",
+                  width: "60%",
+                  background: t.gradient,
+                  borderRadius: 2,
                 }}
-              >
-                <Icon d={icons.file} size={16} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>
-                  {doc.fileName}
-                </div>
-                <div style={{ fontSize: 11, color: t.textDim }}>
-                  {formatFileSize(doc.fileSize)} •{" "}
-                  {new Date(doc.uploadedAt).toLocaleDateString("en-IN")}
-                </div>
-              </div>
-              <a
-                href={doc.fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  border: `1px solid ${t.accentBorder}`,
-                  background: "transparent",
-                  color: t.accent,
-                  fontSize: 12,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  textDecoration: "none",
-                }}
-              >
-                <Icon d={icons.download} size={13} />
-              </a>
+              />
             </div>
-          ))}
+          )}
+          {uploadError && (
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 12,
+                color: t.danger,
+                padding: "6px 12px",
+                borderRadius: 8,
+                background: `${t.danger}15`,
+              }}
+            >
+              {uploadError}
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
+      <div style={card}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 20,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: t.text,
+              fontFamily: "'Playfair Display', Georgia, serif",
+            }}
+          >
+            Uploaded Documents
+          </div>
+          <span style={{ fontSize: 12, color: t.textMuted }}>
+            {lead.documents.length} files
+          </span>
+        </div>
+        {lead.documents.length === 0 ? (
+          <div
+            style={{
+              padding: 32,
+              borderRadius: 12,
+              background: t.bgHover,
+              textAlign: "center",
+            }}
+          >
+            <Icon d={icons.docs} size={32} />
+            <div style={{ marginTop: 10, fontSize: 13, color: t.textMuted }}>
+              No documents uploaded yet
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {lead.documents.map((doc) => (
+              <div
+                key={doc.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  padding: "12px 16px",
+                  borderRadius: 10,
+                  background: t.bgHover,
+                  border: `1px solid ${t.accentBorder}`,
+                }}
+              >
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    background:
+                      doc.fileType === "PDF"
+                        ? `${t.danger}20`
+                        : `${t.success}20`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: doc.fileType === "PDF" ? t.danger : t.success,
+                    fontSize: 10,
+                    fontWeight: 700,
+                  }}
+                >
+                  {doc.fileType === "PDF" ? "PDF" : "XLS"}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>
+                    {doc.fileName}
+                  </div>
+                  <div style={{ fontSize: 11, color: t.textDim }}>
+                    {formatFileSize(doc.fileSize)} ·{" "}
+                    {new Date(doc.uploadedAt).toLocaleDateString("en-IN")}
+                  </div>
+                </div>
+                <a
+                  href={doc.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: `1px solid ${t.accentBorder}`,
+                    background: "transparent",
+                    color: t.accent,
+                    fontSize: 12,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    textDecoration: "none",
+                  }}
+                >
+                  <Icon d={icons.download} size={13} />
+                </a>
+                <button
+                  onClick={() => handleDelete(doc.id)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: `1px solid ${t.danger}40`,
+                    background: "transparent",
+                    color: t.danger,
+                    fontSize: 12,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <Icon d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
+
+  const handleDelete = async (documentId: string) => {
+    if (!confirm("Are you sure you want to delete this document?")) return;
+    try {
+      const res = await fetch("/api/documents/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId, leadId: lead.leadDbId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Delete failed");
+      router.refresh();
+    } catch (err: any) {
+      alert("Delete failed: " + err.message);
+    }
+  };
 
   // ── Chat ──────────────────────────────────────────────────────────────────
   const renderChat = () => (
@@ -1886,31 +2048,31 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
 
         {/* FIX: collapse toggle — moved inside sidebar, no negative right offset */}
         <button
-  onClick={() => setCollapsed(!collapsed)}
-  style={{
-    position: "absolute",
-    top: "500px",
-    right: "-12px",   // pushes it outside the sidebar
-    width: "28px",
-    height: "28px",
-    borderRadius: "50%",
-    border: `1px solid ${t.accent}`,
-    background: t.bg,
-    color: t.textMuted,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transition: "all 0.2s ease",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-    zIndex: 10
-  }}
->
-  <Icon
-    d={collapsed ? icons.chevronRight : icons.chevronLeft}
-    size={14}
-  />
-</button>
+          onClick={() => setCollapsed(!collapsed)}
+          style={{
+            position: "absolute",
+            top: "500px",
+            right: "-12px", // pushes it outside the sidebar
+            width: "28px",
+            height: "28px",
+            borderRadius: "50%",
+            border: `1px solid ${t.accent}`,
+            background: t.bg,
+            color: t.textMuted,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "all 0.2s ease",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+            zIndex: 10,
+          }}
+        >
+          <Icon
+            d={collapsed ? icons.chevronRight : icons.chevronLeft}
+            size={14}
+          />
+        </button>
       </div>
 
       {/* Main */}
@@ -1971,7 +2133,7 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
                 transition: "all 0.15s",
               }}
             >
-              <Icon d={icons.palette} size={14}  /> Theme
+              <Icon d={icons.palette} size={14} /> Theme
             </button>
 
             {/* Theme picker dropdown — rendered as sibling, uses ref-based outside-click */}

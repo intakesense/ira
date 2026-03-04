@@ -127,6 +127,7 @@ enum DocumentType {
   JPG
   JPEG
   PNG
+  EXCEL
 }
 
 enum OrganicSubmissionStatus {
