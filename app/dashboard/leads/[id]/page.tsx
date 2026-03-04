@@ -379,22 +379,27 @@ export default async function LeadDetailPage(props: Props) {
             </div>
           </div>
 
-          <PaymentLinkCard
-            email={lead.email}
-            name={lead.contactPerson}
-            leadId={lead.leadId}
-            status={lead.status}
-            savedPaymentLink={lead.paymentLink ?? ""} // ← from DB
-            savedSentAt={lead.paymentLinkSentAt ?? null}
-          />
+          {isReviewer && lead.assessment?.status === "APPROVED" && (
+            <PaymentLinkCard
+              email={lead.email}
+              name={lead.contactPerson}
+              leadId={lead.leadId}
+              status={lead.status}
+              savedPaymentLink={lead.paymentLink ?? ""}
+              savedSentAt={lead.paymentLinkSentAt ?? null}
+            />
+          )}
           {/* Mark Complete & Send Access — shown when payment is pending */}
-          {lead.status === "COMPLETED" && (
+          {isReviewer && lead.status === "COMPLETED" && (
             <div className="glass space-y-4 rounded-2xl p-6">
               <h2 className="text-lg font-semibold">Payment Received ✓</h2>
               <p className="text-sm text-foreground/60">
                 Send portal access credentials to the client.
               </p>
-              <SendPortalAccessButton leadId={lead.leadId} />
+              <SendPortalAccessButton
+                leadId={lead.leadId}
+                portalAccessSentAt={lead.portalAccessSentAt ?? null}
+              />
             </div>
           )}
         </div>

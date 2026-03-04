@@ -297,7 +297,7 @@ export async function approveAssessment(
       prisma.lead.update({
         where: { id: assessment.lead.id },
         data: {
-          status: "COMPLETED",
+          status: "PAYMENT_PENDING",
           updatedAt: new Date(),
         },
       }),

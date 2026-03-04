@@ -4,15 +4,19 @@ import { sendClientPortalAccess } from "@/actions/lead";
 
 interface Props {
   leadId: string;
+  portalAccessSentAt: Date | null;
 }
 
 interface Props {
   leadId: string;
 }
 
-export default function SendPortalAccessButton({ leadId }: Props) {
+export default function SendPortalAccessButton({
+  leadId,
+  portalAccessSentAt,
+}: Props) {
   const [loading, setLoading] = useState(false);
-  const [sentAt, setSentAt] = useState<Date | null>();
+  const [sentAt, setSentAt] = useState<Date | null>(portalAccessSentAt);
   const [showResend, setShowResend] = useState(false);
 
   const handleClick = async () => {
@@ -79,14 +83,19 @@ export default function SendPortalAccessButton({ leadId }: Props) {
     );
   }
 
-  // First time send
+  // Fallback — portal access not sent yet (edge case if webhook email failed)
   return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 h-10 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all w-full"
-    >
-      {loading ? "Sending..." : "✓ Send Portal Access"}
-    </button>
+    <div className="space-y-2">
+      <p className="text-xs text-foreground/60">
+        Automatic email may have failed. Send manually.
+      </p>
+      <button
+        onClick={handleClick}
+        disabled={loading}
+        className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 h-10 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all w-full"
+      >
+        {loading ? "Sending..." : "Send Portal Access"}
+      </button>
+    </div>
   );
 }

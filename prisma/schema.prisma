@@ -189,6 +189,8 @@ model Lead {
   paymentLink     String?
   paymentLinkSentAt DateTime?
   
+  //dashboard portal access
+  portalAccessSentAt DateTime?
   @@index([status])
   @@index([assignedAssessorId])
   @@index([createdById])

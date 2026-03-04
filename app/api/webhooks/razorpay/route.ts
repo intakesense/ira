@@ -3,7 +3,7 @@ import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import { LeadStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-
+import { sendClientCredentialsEmail, getAppBaseUrl } from "@/lib/email";
 export async function POST(req: NextRequest) {
   console.log("🔔 Webhook hit");
   console.log("Secret loaded:", !!process.env.RAZORPAY_WEBHOOK_SECRET);
@@ -56,6 +56,25 @@ export async function POST(req: NextRequest) {
       data: { status: LeadStatus.COMPLETED },
     });
 
+    // Auto-send portal access email
+    try {
+      await sendClientCredentialsEmail({
+        recipientEmail: lead.email,
+        recipientName: lead.contactPerson,
+        companyName: lead.companyName,
+        cin: lead.cin,
+        // loginUrl: `${process.env.NEXT_PUBLIC_APP_URL}/client-portal/login`,
+        loginUrl: `${getAppBaseUrl()}/client-portal/login`,
+      });
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: { portalAccessSentAt: new Date() },
+      });
+      console.log("✅ Portal access email sent automatically");
+    } catch (emailError) {
+      console.error("❌ Failed to send portal access email:", emailError);
+      // Don't fail the webhook if email fails
+    }
     await prisma.auditLog.create({
       data: {
         userId: lead.createdById,

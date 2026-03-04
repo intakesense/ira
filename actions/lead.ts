@@ -1025,6 +1025,11 @@ export async function sendClientPortalAccess(
       loginUrl: `${getAppBaseUrl()}/client-portal/login`,
     });
 
+    await prisma.lead.update({
+      where: { leadId },
+      data: { portalAccessSentAt: new Date() },
+    });
+    
     revalidatePath(`/dashboard/leads/${leadId}`);
     revalidatePath("/dashboard/leads");
 
