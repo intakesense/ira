@@ -19,6 +19,10 @@ export default async function ClientPortalPage() {
       assignedAssessor: {
         select: { id: true, name: true, email: true },
       },
+      createdBy: {
+        // ← ADD
+        select: { id: true, name: true },
+      },
     },
   });
 
@@ -29,7 +33,8 @@ export default async function ClientPortalPage() {
   return (
     <ClientDashboard
       lead={{
-        leadDbId: lead.id, // ← cuid for upload API
+        leadDbId: lead.id, 
+        reviewerName: lead.createdBy.name,
         companyName: lead.companyName,
         contactPerson: lead.contactPerson,
         cin: lead.cin,

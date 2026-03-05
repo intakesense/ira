@@ -12,6 +12,8 @@ import { Probe42DataCard } from "@/components/probe42-data-card";
 import { EditLeadButton } from "@/components/edit-lead-button";
 import PaymentLinkCard from "../PaymentLinkCard";
 import SendPortalAccessButton from "./SendPortalAccessButton";
+import { LeadChat } from "@/components/lead-chat";
+
 type Props = {
   params: Promise<{ id: string }>;
 };
@@ -308,7 +310,7 @@ export default async function LeadDetailPage(props: Props) {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
           {/* Assignment */}
           <div className="glass space-y-4 rounded-2xl p-6">
             <h2 className="text-lg font-semibold">Assignment</h2>
@@ -399,6 +401,16 @@ export default async function LeadDetailPage(props: Props) {
               <SendPortalAccessButton
                 leadId={lead.leadId}
                 portalAccessSentAt={lead.portalAccessSentAt ?? null}
+              />
+            </div>
+          )}
+          {/* Client Chat */}
+          {isReviewer && (
+            <div className="sticky top-6 h-[500px]">
+              <LeadChat
+                leadId={lead.id}
+                leadDbId={lead.id}
+                senderName={session.user.name}
               />
             </div>
           )}

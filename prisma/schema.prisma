@@ -189,8 +189,11 @@ model Lead {
   paymentLink     String?
   paymentLinkSentAt DateTime?
   
-  //dashboard portal access
+  //Dashboard portal access
   portalAccessSentAt DateTime?
+ 
+ // Client dashboard messages
+  messages Message[]
   @@index([status])
   @@index([assignedAssessorId])
   @@index([createdById])
@@ -397,5 +400,15 @@ model OrganicSubmission {
   @@index([submittedAt])
   @@index([isEmailVerified])
   @@map("organic_submission")
+}
+// Client dashboard message model
+model Message {
+  id         String   @id @default(cuid())
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  content    String
+  senderType String   // "CLIENT" or "TEAM"
+  senderName String
+  createdAt  DateTime @default(now())
 }
 

@@ -1062,7 +1062,7 @@ export function getPaymentLinkEmailHTML(data: PaymentLinkEmailData): string {
       <tr>
         <td style="padding: 10px 0; font-size: 14px; color: #555; border-bottom: 1px solid #f0f0f0;">${item.label}</td>
         <td style="padding: 10px 0; font-size: 14px; color: #555; text-align: right; border-bottom: 1px solid #f0f0f0;">${item.amount}</td>
-      </tr>`
+      </tr>`,
         )
         .join("")
     : "";
@@ -1100,8 +1100,8 @@ export function getPaymentLinkEmailHTML(data: PaymentLinkEmailData): string {
                       <tr>
                         <td style="padding: 36px 40px 28px 40px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                           <h1 style="margin: 0 0 6px 0; color: white; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">Payment Request</h1>
-                          ${data.invoiceNumber ? `<p style="margin: 0; font-size: 13px; color: rgba(255,255,255,0.75);">Invoice #${data.invoiceNumber}</p>` : ''}
-                          ${data.dueDate ? `<p style="margin: 4px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.75);">Due by ${data.dueDate}</p>` : ''}
+                          ${data.invoiceNumber ? `<p style="margin: 0; font-size: 13px; color: rgba(255,255,255,0.75);">Invoice #${data.invoiceNumber}</p>` : ""}
+                          ${data.dueDate ? `<p style="margin: 4px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.75);">Due by ${data.dueDate}</p>` : ""}
                         </td>
                       </tr>
                     </table>
@@ -1112,36 +1112,48 @@ export function getPaymentLinkEmailHTML(data: PaymentLinkEmailData): string {
                         <td style="padding: 36px 40px;">
 
                           <p style="margin: 0 0 6px 0; font-size: 16px; color: #333;">
-                            Hello${data.recipientName ? ` <strong>${data.recipientName}</strong>` : ''},
+                            Hello${data.recipientName ? ` <strong>${data.recipientName}</strong>` : ""},
                           </p>
                           <p style="margin: 0 0 28px 0; font-size: 15px; line-height: 24px; color: #555;">
                             You have a new secure payment request. Please review the details below and complete your payment at your earliest convenience.
                           </p>
 
                           <!-- Order Summary -->
-                          ${itemRows ? `
+                          ${
+                            itemRows
+                              ? `
                           <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 700; color: #333; text-transform: uppercase; letter-spacing: 0.8px;">Your Order</p>
                           <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 0;">
                             ${itemRows}
                           </table>
-                          ` : ''}
+                          `
+                              : ""
+                          }
 
                           <!-- Total -->
-                          ${data.amount ? `
+                          ${
+                            data.amount
+                              ? `
                           <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 16px 0 32px 0; border-top: 2px solid #111;">
                             <tr>
                               <td style="padding: 14px 0 0 0; font-size: 16px; font-weight: 700; color: #111;">Total</td>
                               <td style="padding: 14px 0 0 0; font-size: 22px; font-weight: 700; color: #111; text-align: right;">₹${data.amount}</td>
                             </tr>
                           </table>
-                          ` : ''}
+                          `
+                              : ""
+                          }
 
                           <!-- Description -->
-                          ${data.description ? `
+                          ${
+                            data.description
+                              ? `
                           <p style="margin: 0 0 28px 0; font-size: 14px; line-height: 22px; color: #666; padding: 14px 16px; background: #f9fafb; border-radius: 8px; border-left: 3px solid #667eea;">
                             ${data.description}
                           </p>
-                          ` : ''}
+                          `
+                              : ""
+                          }
 
                           <!-- CTA Button -->
                           <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
@@ -1173,7 +1185,16 @@ export function getPaymentLinkEmailHTML(data: PaymentLinkEmailData): string {
                               </td>
                             </tr>
                           </table>
-
+                          <table role="presentation" style="width: 100%; border-collapse: collapse; margin-top: 16px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
+                            <tr>
+                              <td style="padding: 16px 20px;">
+                                <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 700; color: #065f46;">🎉 After Payment</p>
+                                <p style="margin: 0; font-size: 13px; color: #555; line-height: 22px;">
+                                  Once your payment is confirmed, you will automatically receive a separate email with your <strong>IPO Readiness Portal login credentials</strong>. Use your CIN to log in and access your dashboard, reports, and advisor team.
+                                </p>
+                              </td>
+                            </tr>
+                          </table>
                         </td>
                       </tr>
                     </table>
@@ -1227,7 +1248,8 @@ Payment Details:
 - Secure payment via Razorpay
 - Link expires in 24 hours
 - Questions? Contact support@irascore.com
-
+AFTER PAYMENT:
+Once your payment is confirmed, you will automatically receive a separate email with your IPO Readiness Portal login credentials. Use your CIN to log in and access your dashboard.
 ---
 This is an automated payment notification from IRA Platform.
 © ${new Date().getFullYear()} IRA Platform. All rights reserved.
@@ -1237,14 +1259,16 @@ This is an automated payment notification from IRA Platform.
 // Client email template
 
 export interface ClientCredentialsEmailData {
-  recipientEmail: string
-  recipientName: string
-  companyName: string
-  loginUrl: string
-  cin: string 
+  recipientEmail: string;
+  recipientName: string;
+  companyName: string;
+  loginUrl: string;
+  cin: string;
 }
 
-export function getClientCredentialsEmailHTML(data: ClientCredentialsEmailData): string {
+export function getClientCredentialsEmailHTML(
+  data: ClientCredentialsEmailData,
+): string {
   return `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
       <h2>Welcome to your IPO Readiness Portal</h2>
@@ -1263,11 +1287,12 @@ export function getClientCredentialsEmailHTML(data: ClientCredentialsEmailData):
         Or copy this link: ${data.loginUrl}
       </p>
     </div>
-  `
+  `;
 }
 
-
-export function getClientCredentialsEmailText(data: ClientCredentialsEmailData): string {
+export function getClientCredentialsEmailText(
+  data: ClientCredentialsEmailData,
+): string {
   return `
 Welcome to your IPO Readiness Portal
 
@@ -1281,5 +1306,5 @@ Your Login ID (CIN): ${data.cin}
 Login here: ${data.loginUrl}
 
 You will receive an OTP on this email to verify your identity.
-  `
+  `;
 }

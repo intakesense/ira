@@ -1,9 +1,11 @@
 "use client";
 import { useState, useEffect, CSSProperties, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { pusherClient } from "@/lib/pusher";
 // ─── Lead Data Type ───────────────────────────────────────────────────────────
 interface LeadData {
   leadDbId: string;
+  reviewerName: string;
   companyName: string;
   contactPerson: string;
   cin: string;
@@ -90,10 +92,11 @@ interface TimelineItem {
 }
 
 interface Message {
-  from: string;
-  text: string;
-  time: string;
-  mine: boolean;
+  id: string;
+  content: string;
+  senderType: string;
+  senderName: string;
+  createdAt: string | Date;
 }
 
 // ─── Theme Definitions ────────────────────────────────────────────────────────
@@ -531,26 +534,22 @@ function ThemePicker({
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function ClientDashboard({ lead }: { lead: LeadData }) {
-  const [activeNav, setActiveNav] = useState("overview");
+  type SectionKey =
+    | "overview"
+    | "checklist"
+    | "report"
+    | "documents"
+    | "chat"
+    | "timeline"
+    | "advisors";
+  const [activeNav, setActiveNav] = useState<SectionKey>("overview");
   const [collapsed, setCollapsed] = useState(false);
   const [themeKey, setThemeKey] = useState("Navy Pro");
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [chatInput, setChatInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    lead.assignedAssessor
-      ? {
-          from: lead.assignedAssessor.name,
-          text: "Welcome to your IPO Readiness Portal! Feel free to reach out with any questions.",
-          time: "Today",
-          mine: false,
-        }
-      : {
-          from: "IRA Team",
-          text: "Welcome to your IPO Readiness Portal!",
-          time: "Today",
-          mine: false,
-        },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [chatLoading, setChatLoading] = useState(true);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
   const t: Theme = themes[themeKey];
@@ -559,6 +558,36 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Fetch message history
+  useEffect(() => {
+    fetch(`/api/chat/messages?leadId=${lead.leadDbId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setMessages(data.messages || []);
+        setChatLoading(false);
+      })
+      .catch(() => setChatLoading(false));
+  }, [lead.leadDbId]);
+
+  // Subscribe to Pusher
+  useEffect(() => {
+    const channel = pusherClient.subscribe(`lead-${lead.leadDbId}`);
+    channel.bind("new-message", (data: Message) => {
+      setMessages((prev) => {
+        if (prev.find((m) => m.id === data.id)) return prev;
+        return [...prev, data];
+      });
+    });
+    return () => {
+      pusherClient.unsubscribe(`lead-${lead.leadDbId}`);
+    };
+  }, [lead.leadDbId]);
+
+  // Auto scroll
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   // ─── Derived Real Data ────────────────────────────────────────────────────
 
@@ -679,13 +708,23 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
     { label: "IPO Listing", date: "Upcoming", done: false, active: false },
   ];
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!chatInput.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      { from: "You", text: chatInput, time: "Now", mine: true },
-    ]);
-    setChatInput("");
+    try {
+      await fetch("/api/chat/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadId: lead.leadDbId,
+          content: chatInput.trim(),
+          senderType: "CLIENT",
+          senderName: lead.contactPerson,
+        }),
+      });
+      setChatInput("");
+    } catch (err) {
+      console.error("Send failed:", err);
+    }
   };
 
   const card: CSSProperties = {
@@ -1569,9 +1608,10 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
         }}
       >
         {lead.assignedAssessor
-          ? `Your advisor: ${lead.assignedAssessor.name}`
+          ? `Your advisor: ${lead.reviewerName}`
           : "Direct line to your IPO advisory team"}
       </div>
+
       <div
         style={{
           flex: 1,
@@ -1582,83 +1622,115 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
           paddingBottom: 16,
         }}
       >
-        {messages.map((msg, i) => (
+        {chatLoading ? (
           <div
-            key={i}
             style={{
-              display: "flex",
-              justifyContent: msg.mine ? "flex-end" : "flex-start",
-              gap: 10,
+              textAlign: "center",
+              padding: 32,
+              color: t.textMuted,
+              fontSize: 13,
             }}
           >
-            {!msg.mine && (
+            Loading messages...
+          </div>
+        ) : messages.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: 32,
+              color: t.textMuted,
+              fontSize: 13,
+            }}
+          >
+            No messages yet. Send a message to your advisor!
+          </div>
+        ) : (
+          messages.map((msg) => {
+            const isClient = msg.senderType === "CLIENT";
+            return (
               <div
+                key={msg.id}
                 style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  background: t.accent,
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "#fff",
-                  flexShrink: 0,
+                  justifyContent: isClient ? "flex-end" : "flex-start",
+                  gap: 10,
                 }}
               >
-                {msg.from
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
-              </div>
-            )}
-            <div
-              style={{
-                maxWidth: "70%",
-                padding: "10px 14px",
-                borderRadius: 14,
-                background: msg.mine ? t.accent : t.bgHover,
-                border: `1px solid ${msg.mine ? t.accent : t.accentBorder}`,
-                borderBottomRightRadius: msg.mine ? 4 : 14,
-                borderBottomLeftRadius: msg.mine ? 14 : 4,
-              }}
-            >
-              {!msg.mine && (
+                {!isClient && (
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      background: t.accent,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#fff",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {msg.senderName
+                      .split(" ")
+                      .map((n: string) => n[0])
+                      .join("")}
+                  </div>
+                )}
                 <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: t.accent,
-                    marginBottom: 4,
+                    maxWidth: "70%",
+                    padding: "10px 14px",
+                    borderRadius: 14,
+                    background: isClient ? t.accent : t.bgHover,
+                    border: `1px solid ${isClient ? t.accent : t.accentBorder}`,
+                    borderBottomRightRadius: isClient ? 4 : 14,
+                    borderBottomLeftRadius: isClient ? 14 : 4,
                   }}
                 >
-                  {msg.from}
+                  {!isClient && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: t.accent,
+                        marginBottom: 4,
+                      }}
+                    >
+                      {msg.senderName}
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: isClient ? "#fff" : t.text,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {msg.content}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: isClient ? "rgba(255,255,255,0.6)" : t.textDim,
+                      marginTop: 4,
+                      textAlign: "right",
+                    }}
+                  >
+                    {new Date(msg.createdAt).toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
                 </div>
-              )}
-              <div
-                style={{
-                  fontSize: 13,
-                  color: msg.mine ? "#fff" : t.text,
-                  lineHeight: 1.5,
-                }}
-              >
-                {msg.text}
               </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: msg.mine ? "rgba(255,255,255,0.6)" : t.textDim,
-                  marginTop: 4,
-                  textAlign: "right",
-                }}
-              >
-                {msg.time}
-              </div>
-            </div>
-          </div>
-        ))}
+            );
+          })
+        )}
+        <div ref={chatBottomRef} />
       </div>
+
       <div
         style={{
           display: "flex",
@@ -1897,7 +1969,7 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
     </div>
   );
 
-  const sections: Record<string, () => React.ReactElement> = {
+  const sections = {
     overview: renderOverview,
     checklist: renderChecklist,
     report: renderReport,
@@ -1997,7 +2069,7 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveNav(item.id)}
+                onClick={() => setActiveNav(item.id as SectionKey)}
                 title={collapsed ? item.label : undefined}
                 style={{
                   width: "100%",
