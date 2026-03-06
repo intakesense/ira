@@ -224,6 +224,8 @@ export type LeadWithRelations = {
     rating: string | null
     totalScore: number | null
     maxScore: number | null
+    remarks: unknown
+
   } | null
   _count: {
     documents: number
@@ -252,7 +254,6 @@ export type LeadWithRelations = {
   paymentLink: string | null        
   paymentLinkSentAt: Date | null 
   portalAccessSentAt: Date | null
-
 }
 
 // ============================================

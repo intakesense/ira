@@ -20,6 +20,7 @@ interface LeadData {
     q10EbitdaYear2: number | null;
     q10EbitdaYear3: number | null;
     q4PaidUpCapital: number | null;
+     q5OutstandingShares: number | null;
     q6NetWorth: number | null;
     q7Borrowings: number | null;
     q8DebtEquityRatio: number | null;
@@ -33,6 +34,7 @@ interface LeadData {
     q3bIndependentBoard: boolean | null;
     q3cMidManagement: boolean | null;
     q3dKeyPersonnel: boolean | null;
+    remarks: Record<string, string> | null;
   } | null;
   documents: Array<{
     id: string;
@@ -1178,6 +1180,192 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
   };
 
   // ── Report ────────────────────────────────────────────────────────────────
+
+  const downloadReportPDF = () => {
+    if (!a) return;
+    import("jspdf").then(({ default: jsPDF }) => {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      let y = 20;
+
+      const addText = (
+        text: string,
+        size: number,
+        bold = false,
+        color: [number, number, number] = [30, 30, 30],
+      ) => {
+        doc.setFontSize(size);
+        doc.setFont("helvetica", bold ? "bold" : "normal");
+        doc.setTextColor(...color);
+        const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
+        doc.text(lines, margin, y);
+        y += (size * 0.4 + 2) * (lines as string[]).length;
+      };
+
+      const addLine = () => {
+        doc.setDrawColor(220, 220, 220);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 6;
+      };
+
+      const checkNewPage = () => {
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+      };
+
+      // Header
+      doc.setFillColor(37, 99, 235);
+      doc.rect(0, 0, pageWidth, 40, "F");
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(255, 255, 255);
+      doc.text("IPO Readiness Assessment Report", margin, 25);
+      y = 55;
+
+      // Company Info
+      addText(lead.companyName, 16, true, [37, 99, 235]);
+      y += 2;
+      addText(`CIN: ${lead.cin}`, 10, false, [100, 100, 100]);
+      addText(
+        `Prepared for: ${lead.contactPerson}`,
+        10,
+        false,
+        [100, 100, 100],
+      );
+      addText(
+        `Date: ${new Date().toLocaleDateString("en-IN")}`,
+        10,
+        false,
+        [100, 100, 100],
+      );
+      y += 4;
+      addLine();
+
+      // Score Summary
+      addText("Assessment Score Summary", 13, true);
+      y += 2;
+      addText(`Overall Score: ${score}/100`, 11);
+      addText(`Rating: ${ratingLabel}`, 11);
+      if (a.q9TurnoverYear1)
+        addText(`Revenue (Latest): Rs ${a.q9TurnoverYear1.toFixed(1)} Cr`, 11);
+      if (a.q10EbitdaYear1)
+        addText(`EBITDA (Latest): Rs ${a.q10EbitdaYear1.toFixed(1)} Cr`, 11);
+      y += 4;
+      addLine();
+
+      // Financial Overview
+      addText("Financial Overview", 13, true);
+      y += 2;
+      if (a.q4PaidUpCapital)
+        addText(`Paid-up Capital: Rs ${a.q4PaidUpCapital.toFixed(2)} Cr`, 11);
+      if (a.q6NetWorth)
+        addText(`Net Worth: Rs ${a.q6NetWorth.toFixed(2)} Cr`, 11);
+      if (a.q7Borrowings)
+        addText(`Borrowings: Rs ${a.q7Borrowings.toFixed(2)} Cr`, 11);
+      if (a.q8DebtEquityRatio)
+        addText(`Debt-Equity Ratio: ${a.q8DebtEquityRatio.toFixed(2)}x`, 11);
+      if (a.q11Eps) addText(`EPS: Rs ${a.q11Eps.toFixed(2)}`, 11);
+      y += 4;
+      addLine();
+
+      // Q&A with Remarks
+      addText("Assessment Q&A", 13, true);
+      y += 4;
+      const remarks = (a.remarks as Record<string, string>) || {};
+      const questions = [
+        {
+          id: "hasInvestmentPlan",
+          q: "1. Are you ready with your investment plan?",
+        },
+        {
+          id: "q2aGovernancePlan",
+          q: "2. Is the corporate governance plan in place with Indian listing norms?",
+        },
+        {
+          id: "q2bFinancialReporting",
+          q: "3. Does your financial reporting comply with statutory laws?",
+        },
+        {
+          id: "q2cControlSystems",
+          q: "4. Does your company have robust financial and internal control systems?",
+        },
+        {
+          id: "q2dShareholdingClear",
+          q: "5. Is your shareholding clear and transparent?",
+        },
+        {
+          id: "q3aSeniorManagement",
+          q: "6. Does the company have a professional senior management team?",
+        },
+        {
+          id: "q3bIndependentBoard",
+          q: "7. Are there credible independent members on the board?",
+        },
+        {
+          id: "q3cMidManagement",
+          q: "8. Is there experienced staff at the mid-management level?",
+        },
+        {
+          id: "q3dKeyPersonnel",
+          q: "9. Are key personnel recognized per corporate governance norms?",
+        },
+        {
+          id: "q4PaidUpCapital",
+          q: `10. Paid-up Capital: ${a.q4PaidUpCapital ? `Rs ${a.q4PaidUpCapital.toFixed(2)} Cr` : "N/A"}`,
+        },
+        {
+          id: "q5OutstandingShares",
+          q: `11. Outstanding Shares: ${a.q5OutstandingShares ?? "N/A"}`,
+        },
+        {
+          id: "q6NetWorth",
+          q: `12. Net Worth: ${a.q6NetWorth ? `Rs ${a.q6NetWorth.toFixed(2)} Cr` : "N/A"}`,
+        },
+        {
+          id: "q7Borrowings",
+          q: `13. Total Borrowings: ${a.q7Borrowings ? `Rs ${a.q7Borrowings.toFixed(2)} Cr` : "N/A"}`,
+        },
+        {
+          id: "q8DebtEquityRatio",
+          q: `14. Debt-Equity Ratio: ${a.q8DebtEquityRatio?.toFixed(2) ?? "N/A"}`,
+        },
+        {
+          id: "q9Turnover",
+          q: `15. Turnover (Last 3 Years): Year1: ${a.q9TurnoverYear1 ?? "N/A"} Cr | Year2: ${a.q9TurnoverYear2 ?? "N/A"} Cr | Year3: ${a.q9TurnoverYear3 ?? "N/A"} Cr`,
+        },
+        {
+          id: "q10Turnover",
+          q: `16. EBITDA (Last 3 Years): Year1: ${a.q10EbitdaYear1 ?? "N/A"} Cr | Year2: ${a.q10EbitdaYear2 ?? "N/A"} Cr | Year3: ${a.q10EbitdaYear3 ?? "N/A"} Cr`,
+        },
+        {
+          id: "q11Eps",
+          q: `17. Earnings Per Share (EPS): ${a.q11Eps ? `Rs ${a.q11Eps.toFixed(2)}` : "N/A"}`,
+        },
+      ];
+
+      questions.forEach(({ id, q }) => {
+        checkNewPage();
+        addText(q, 10, true);
+        if (remarks[id])
+          addText(`Reason: ${remarks[id]}`, 9, false, [80, 80, 80]);
+        y += 4;
+      });
+
+      addLine();
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      doc.text(
+        "This report is confidential and prepared by IPO Ready Advisory.",
+        margin,
+        285,
+      );
+
+      doc.save(`IPO_Report_${lead.companyName.replace(/\s+/g, "_")}.pdf`);
+    });
+  };
   const renderReport = () => (
     <div style={card}>
       <div
@@ -1229,7 +1417,25 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
           {ratingLabel}
         </div>
       </div>
-
+      <button
+        onClick={downloadReportPDF}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 20px",
+          borderRadius: 10,
+          background: t.gradient,
+          color: "#fff",
+          fontSize: 13,
+          fontWeight: 600,
+          border: "none",
+          cursor: "pointer",
+          marginBottom: 20,
+        }}
+      >
+        <Icon d={icons.download} size={15} /> Download PDF Report
+      </button>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {[
           {

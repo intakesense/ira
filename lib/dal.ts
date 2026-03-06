@@ -1,11 +1,11 @@
 // IRA Platform - Data Access Layer (DAL)
 // Centralized auth verification and common database operations
 
-import { headers } from "next/headers"
-import { auth } from "@/lib/auth"
-import { Errors, AppError } from "@/lib/errors"
-import prisma from "@/lib/prisma"
-import { Prisma } from "@prisma/client"
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { Errors, AppError } from "@/lib/errors";
+import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 // ============================================
 // AUTH VERIFICATION
@@ -13,17 +13,17 @@ import { Prisma } from "@prisma/client"
 
 export type VerifiedSession = {
   user: {
-    id: string
-    name: string
-    email: string
-    role: "ASSESSOR" | "REVIEWER"
-    isActive: boolean
-  }
+    id: string;
+    name: string;
+    email: string;
+    role: "ASSESSOR" | "REVIEWER";
+    isActive: boolean;
+  };
   session: {
-    id: string
-    expiresAt: Date
-  }
-}
+    id: string;
+    expiresAt: Date;
+  };
+};
 
 /**
  * Verify authentication and return session (OPTIMIZED)
@@ -34,10 +34,10 @@ export type VerifiedSession = {
 export async function verifyAuth(): Promise<VerifiedSession> {
   const session = await auth.api.getSession({
     headers: await headers(),
-  })
+  });
 
   if (!session?.user) {
-    throw Errors.unauthorized()
+    throw Errors.unauthorized();
   }
 
   // Better Auth already includes user data from session
@@ -45,14 +45,14 @@ export async function verifyAuth(): Promise<VerifiedSession> {
   const userActive = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { isActive: true },
-  })
+  });
 
   if (!userActive) {
-    throw Errors.unauthorized("User not found")
+    throw Errors.unauthorized("User not found");
   }
 
   if (!userActive.isActive) {
-    throw Errors.userInactive()
+    throw Errors.userInactive();
   }
 
   // Use session data for user info (already fresh from Better Auth)
@@ -68,22 +68,22 @@ export async function verifyAuth(): Promise<VerifiedSession> {
       id: session.session.id,
       expiresAt: session.session.expiresAt,
     },
-  }
+  };
 }
 
 /**
  * Verify user has specific role
  */
 export async function verifyRole(
-  requiredRole: "ASSESSOR" | "REVIEWER"
+  requiredRole: "ASSESSOR" | "REVIEWER",
 ): Promise<VerifiedSession> {
-  const session = await verifyAuth()
+  const session = await verifyAuth();
 
   if (session.user.role !== requiredRole) {
-    throw Errors.insufficientPermissions(requiredRole)
+    throw Errors.insufficientPermissions(requiredRole);
   }
 
-  return session
+  return session;
 }
 
 // ============================================
@@ -101,11 +101,11 @@ export async function getNextSequence(counterId: string): Promise<number> {
       where: { id: counterId },
       create: { id: counterId, value: 1 },
       update: { value: { increment: 1 } },
-    })
+    });
 
-    return counter.value
+    return counter.value;
   } catch {
-    throw Errors.databaseError("Failed to generate sequence")
+    throw Errors.databaseError("Failed to generate sequence");
   }
 }
 
@@ -113,10 +113,10 @@ export async function getNextSequence(counterId: string): Promise<number> {
  * Generate lead ID atomically
  */
 export async function generateLeadId(): Promise<string> {
-  const year = new Date().getFullYear()
-  const sequence = await getNextSequence(`lead-${year}`)
-  const paddedSequence = String(sequence).padStart(3, "0")
-  return `LD-${year}-${paddedSequence}`
+  const year = new Date().getFullYear();
+  const sequence = await getNextSequence(`lead-${year}`);
+  const paddedSequence = String(sequence).padStart(3, "0");
+  return `LD-${year}-${paddedSequence}`;
 }
 
 // ============================================
@@ -135,7 +135,7 @@ export type AuditAction =
   | "ASSESSMENT_APPROVED"
   | "ASSESSMENT_REJECTED"
   | "DOCUMENT_UPLOADED"
-  | "DOCUMENT_DELETED"
+  | "DOCUMENT_DELETED";
 
 /**
  * Create an audit log entry
@@ -144,7 +144,7 @@ export async function createAuditLog(
   userId: string,
   action: AuditAction,
   leadId?: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): Promise<void> {
   try {
     await prisma.auditLog.create({
@@ -154,10 +154,10 @@ export async function createAuditLog(
         leadId,
         details: details ? JSON.parse(JSON.stringify(details)) : {},
       },
-    })
+    });
   } catch (error) {
     // Log audit errors but don't fail the main operation
-    console.error("Failed to create audit log:", error)
+    console.error("Failed to create audit log:", error);
   }
 }
 
@@ -171,10 +171,10 @@ export async function createAuditLog(
  */
 export function checkOptimisticLock(
   recordUpdatedAt: Date,
-  expectedUpdatedAt: Date
+  expectedUpdatedAt: Date,
 ): void {
   if (recordUpdatedAt.getTime() !== expectedUpdatedAt.getTime()) {
-    throw Errors.concurrentModification()
+    throw Errors.concurrentModification();
   }
 }
 
@@ -187,37 +187,37 @@ export function checkOptimisticLock(
  */
 export function handlePrismaError(error: unknown): AppError {
   if (error instanceof AppError) {
-    return error
+    return error;
   }
 
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     switch (error.code) {
       case "P2002":
         // Unique constraint violation
-        const target = error.meta?.target as string[] | undefined
+        const target = error.meta?.target as string[] | undefined;
         if (target?.includes("cin")) {
-          return Errors.duplicateCIN(error.meta?.target as string)
+          return Errors.duplicateCIN(error.meta?.target as string);
         }
-        return Errors.databaseError("Duplicate record")
+        return Errors.databaseError("Duplicate record");
 
       case "P2025":
         // Record not found
-        return Errors.concurrentModification()
+        return Errors.concurrentModification();
 
       case "P2003":
         // Foreign key constraint violation
-        return Errors.databaseError("Invalid reference")
+        return Errors.databaseError("Invalid reference");
 
       default:
-        return Errors.databaseError(`Database error: ${error.code}`)
+        return Errors.databaseError(`Database error: ${error.code}`);
     }
   }
 
   if (error instanceof Prisma.PrismaClientValidationError) {
-    return Errors.invalidInput("Invalid data format")
+    return Errors.invalidInput("Invalid data format");
   }
 
-  return Errors.unknown(error)
+  return Errors.unknown(error);
 }
 
 // ============================================
@@ -250,6 +250,7 @@ export const leadInclude = {
       rating: true,
       totalScore: true,
       maxScore: true,
+      remarks: true,
     },
   },
   _count: {
@@ -257,4 +258,4 @@ export const leadInclude = {
       documents: true,
     },
   },
-} as const
+} as const;

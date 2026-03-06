@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
         fileType,
         fileSize: file.size,
         uploadedById: lead.createdById,
+        source: "CLIENT",
       },
     });
 

@@ -93,21 +93,21 @@ export default async function ScoringGuidePage() {
 
                 <div className="space-y-4 text-sm">
                     <div className="flex gap-3">
-                        <div className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">1</div>
+                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">1</div>
                         <div>
                             <p className="font-medium">Assessor Gathers Data</p>
                             <p className="text-foreground/60">Financial data is fetched from Probe42 and verified by the assessor</p>
                         </div>
                     </div>
                     <div className="flex gap-3">
-                        <div className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">2</div>
+                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">2</div>
                         <div>
                             <p className="font-medium">11 Questions Answered</p>
                             <p className="text-foreground/60">Mix of Yes/No questions and financial metrics with specific thresholds</p>
                         </div>
                     </div>
                     <div className="flex gap-3">
-                        <div className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">3</div>
+                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">3</div>
                         <div>
                             <p className="font-medium">Automatic Score Calculation</p>
                             <p className="text-foreground/60">Each answer is scored based on thresholds defined below</p>

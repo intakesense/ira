@@ -405,7 +405,7 @@ export default async function LeadDetailPage(props: Props) {
             </div>
           )}
           {/* Client Chat */}
-          {isReviewer && (
+          {isReviewer &&lead.status === "COMPLETED" &&(
             <div className="sticky top-6 h-[500px]">
               <LeadChat
                 leadId={lead.id}

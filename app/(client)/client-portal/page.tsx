@@ -33,7 +33,7 @@ export default async function ClientPortalPage() {
   return (
     <ClientDashboard
       lead={{
-        leadDbId: lead.id, 
+        leadDbId: lead.id,
         reviewerName: lead.createdBy.name,
         companyName: lead.companyName,
         contactPerson: lead.contactPerson,
@@ -50,6 +50,8 @@ export default async function ClientPortalPage() {
               q10EbitdaYear2: lead.assessment.q10EbitdaYear2,
               q10EbitdaYear3: lead.assessment.q10EbitdaYear3,
               q4PaidUpCapital: lead.assessment.q4PaidUpCapital,
+
+              q5OutstandingShares: lead.assessment.q5OutstandingShares,
               q6NetWorth: lead.assessment.q6NetWorth,
               q7Borrowings: lead.assessment.q7Borrowings,
               q8DebtEquityRatio: lead.assessment.q8DebtEquityRatio,
@@ -63,16 +65,20 @@ export default async function ClientPortalPage() {
               q3bIndependentBoard: lead.assessment.q3bIndependentBoard,
               q3cMidManagement: lead.assessment.q3cMidManagement,
               q3dKeyPersonnel: lead.assessment.q3dKeyPersonnel,
+              remarks:
+                (lead.assessment.remarks as Record<string, string>) ?? null,
             }
           : null,
-        documents: lead.documents.map((doc) => ({
-          id: doc.id,
-          fileName: doc.fileName,
-          fileUrl: doc.fileUrl,
-          fileSize: doc.fileSize,
-          fileType: doc.fileType,
-          uploadedAt: doc.uploadedAt,
-        })),
+        documents: lead.documents
+          .filter((doc) => doc.source === "CLIENT")
+          .map((doc) => ({
+            id: doc.id,
+            fileName: doc.fileName,
+            fileUrl: doc.fileUrl,
+            fileSize: doc.fileSize,
+            fileType: doc.fileType,
+            uploadedAt: doc.uploadedAt,
+          })),
         assignedAssessor: lead.assignedAssessor,
       }}
     />

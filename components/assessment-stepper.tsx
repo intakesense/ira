@@ -9,7 +9,7 @@
  * Step 3: Preset Questionnaire
  */
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -62,7 +62,7 @@ type Probe42Data = {
     bs?: {
       subTotals?: {
         totalEquity?: number;
-        ttotalNonCurrentLiabilities?: number;
+        totalNonCurrentLiabilities?: number;
         totalCurrentLiabilities?: number;
         netFixedAssets?: number;
         totalCurrentAssets?: number;
@@ -584,7 +584,135 @@ function Step2FinancialVerification({
 // ============================================================================
 // Step 3: Preset Questionnaire (Unchanged logic, just keeping it here)
 // ============================================================================
+function YesNoQuestion({
+  id,
+  label,
+  value,
+  remarks,
+  onAnswer,
+  onRemark,
+}: {
+  id: string;
+  label: string;
+  value: boolean | null;
+  remarks: Record<string, string>;
+  onAnswer: (id: string, value: boolean) => void;
+  onRemark: (id: string, value: string) => void;
+}) {
+  return (
+    <div className="p-4 rounded-lg bg-background/50 space-y-3">
+      <p className="text-sm font-medium">{label}</p>
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={() => onAnswer(id, true)}
+          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-all ${
+            value === true
+              ? "bg-green-600 text-white border-green-600"
+              : "bg-background border-foreground/20 hover:bg-foreground/5"
+          }`}
+        >
+          Yes
+        </button>
+        <button
+          type="button"
+          onClick={() => onAnswer(id, false)}
+          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-all ${
+            value === false
+              ? "bg-red-600 text-white border-red-600"
+              : "bg-background border-foreground/20 hover:bg-foreground/5"
+          }`}
+        >
+          No
+        </button>
+      </div>
+      <div>
+        <label className="text-xs text-foreground/50 mb-1 block">
+          Reason / Remarks <span className="text-red-500">*</span>
+        </label>
+        <textarea
+          value={remarks[id] || ""}
+          onChange={(e) => onRemark(id, e.target.value)}
+          placeholder="Provide reason or context for this answer..."
+          rows={2}
+          className={`w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none transition-colors ${
+            !remarks[id]?.trim()
+              ? "border-red-400/50 focus:border-red-400"
+              : "border-foreground/20 focus:border-primary"
+          }`}
+        />
+        {!remarks[id]?.trim() && (
+          <p className="text-xs text-red-400 mt-1">Required</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
+function NumberInput({
+  id,
+  label,
+  value,
+  unit,
+  placeholder,
+  remarks,
+  onRemark,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: number | null;
+  unit?: string;
+  placeholder?: string;
+  remarks: Record<string, string>;
+  onRemark: (id: string, value: string) => void;
+  onChange: (id: string, value: number | null) => void;
+}) {
+  return (
+    <div className="p-4 rounded-lg bg-background/50 space-y-3">
+      <label className="text-sm font-medium block">{label}</label>
+      <div className="relative">
+        <input
+          type="number"
+          step="any"
+          value={value ?? ""}
+          onChange={(e) =>
+            onChange(
+              id,
+              e.target.value === "" ? null : parseFloat(e.target.value),
+            )
+          }
+          placeholder={placeholder}
+          className="w-full h-12 px-4 rounded-lg border border-foreground/20 bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+        />
+        {unit && (
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-foreground/50">
+            {unit}
+          </span>
+        )}
+      </div>
+      <div>
+        <label className="text-xs text-foreground/50 mb-1 block">
+          Reason / Remarks <span className="text-red-500">*</span>
+        </label>
+        <textarea
+          value={remarks[id] || ""}
+          onChange={(e) => onRemark(id, e.target.value)}
+          placeholder="Provide context or explanation..."
+          rows={2}
+          className={`w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none transition-colors ${
+            !remarks[id]?.trim()
+              ? "border-red-400/50 focus:border-red-400"
+              : "border-foreground/20 focus:border-primary"
+          }`}
+        />
+        {!remarks[id]?.trim() && (
+          <p className="text-xs text-red-400 mt-1">Required</p>
+        )}
+      </div>
+    </div>
+  );
+}
 function Step3PresetQuestionnaire({
   assessment,
   onBack,
@@ -597,6 +725,9 @@ function Step3PresetQuestionnaire({
   isPending: boolean;
 }) {
   const [saving, startSaving] = useTransition();
+  const [remarks, setRemarks] = useState<Record<string, string>>(
+    (assessment.remarks as Record<string, string>) || {},
+  );
 
   // Local state for form values
   const [formData, setFormData] = useState({
@@ -626,86 +757,63 @@ function Step3PresetQuestionnaire({
   // Auto-save on change
   const handleChange = (field: string, value: boolean | number | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-
     startSaving(async () => {
       await updatePresetAnswers(assessment.id, { [field]: value });
     });
   };
 
-  const YesNoQuestion = ({
-    id,
-    label,
-    value,
-  }: {
-    id: string;
-    label: string;
-    value: boolean | null;
-  }) => (
-    <div className="p-4 rounded-lg bg-background/50">
-      <p className="text-sm font-medium mb-3">{label}</p>
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={() => handleChange(id, true)}
-          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-all ${
-            value === true
-              ? "bg-green-600 text-white border-green-600"
-              : "bg-background border-foreground/20 hover:bg-foreground/5"
-          }`}
-        >
-          Yes
-        </button>
-        <button
-          type="button"
-          onClick={() => handleChange(id, false)}
-          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-all ${
-            value === false
-              ? "bg-red-600 text-white border-red-600"
-              : "bg-background border-foreground/20 hover:bg-foreground/5"
-          }`}
-        >
-          No
-        </button>
-      </div>
-    </div>
+  const remarkTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>(
+    {},
   );
 
-  const NumberInput = ({
-    id,
-    label,
-    value,
-    unit,
-    placeholder,
-  }: {
-    id: string;
-    label: string;
-    value: number | null;
-    unit?: string;
-    placeholder?: string;
-  }) => (
-    <div className="p-4 rounded-lg bg-background/50">
-      <label className="text-sm font-medium mb-2 block">{label}</label>
-      <div className="relative">
-        <input
-          type="number"
-          step="any"
-          value={value ?? ""}
-          onChange={(e) => {
-            const val =
-              e.target.value === "" ? null : parseFloat(e.target.value);
-            handleChange(id, val);
-          }}
-          placeholder={placeholder}
-          className="w-full h-12 px-4 rounded-lg border border-foreground/20 bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
-        />
-        {unit && (
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-foreground/50">
-            {unit}
-          </span>
-        )}
-      </div>
-    </div>
-  );
+  const handleRemark = (field: string, value: string) => {
+    setRemarks((prev) => ({ ...prev, [field]: value }));
+  };
+
+  <YesNoQuestion
+    id="hasInvestmentPlan"
+    label="Are you ready with your investment plan?"
+    value={formData.hasInvestmentPlan}
+    remarks={remarks}
+    onAnswer={handleChange}
+    onRemark={handleRemark}
+  />;
+
+  //   id,
+  //   label,
+  //   value,
+  //   unit,
+  //   placeholder,
+  // }: {
+  //   id: string;
+  //   label: string;
+  //   value: number | null;
+  //   unit?: string;
+  //   placeholder?: string;
+  // }) => (
+  //   <div className="p-4 rounded-lg bg-background/50">
+  //     <label className="text-sm font-medium mb-2 block">{label}</label>
+  //     <div className="relative">
+  //       <input
+  //         type="number"
+  //         step="any"
+  //         value={value ?? ""}
+  //         onChange={(e) => {
+  //           const val =
+  //             e.target.value === "" ? null : parseFloat(e.target.value);
+  //           handleChange(id, val);
+  //         }}
+  //         placeholder={placeholder}
+  //         className="w-full h-12 px-4 rounded-lg border border-foreground/20 bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+  //       />
+  //       {unit && (
+  //         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-foreground/50">
+  //           {unit}
+  //         </span>
+  //       )}
+  //     </div>
+  //   </div>
+  // );
 
   return (
     <div className="space-y-6">
@@ -716,6 +824,9 @@ function Step3PresetQuestionnaire({
           id="hasInvestmentPlan"
           label="Are you ready with your investment plan?"
           value={formData.hasInvestmentPlan}
+          remarks={remarks}
+          onAnswer={handleChange}
+          onRemark={handleRemark}
         />
       </div>
 
@@ -729,21 +840,33 @@ function Step3PresetQuestionnaire({
             id="q2aGovernancePlan"
             label="A. Is the corporate governance plan in place with at least the requirements of Indian corporate listing norms?"
             value={formData.q2aGovernancePlan}
+            remarks={remarks}
+            onAnswer={handleChange}
+            onRemark={handleRemark}
           />
           <YesNoQuestion
             id="q2bFinancialReporting"
             label="B. Does your financial reporting comply with statutory laws, rules, listing norms, accounting standards, etc.?"
             value={formData.q2bFinancialReporting}
+            remarks={remarks}
+            onAnswer={handleChange}
+            onRemark={handleRemark}
           />
           <YesNoQuestion
             id="q2cControlSystems"
             label="C. Does your company have robust financial, operational, and internal control systems ensuring effective governance and risk management?"
             value={formData.q2cControlSystems}
+            remarks={remarks}
+            onAnswer={handleChange}
+            onRemark={handleRemark}
           />
           <YesNoQuestion
             id="q2dShareholdingClear"
             label="D. Is your shareholding clear and transparent?"
             value={formData.q2dShareholdingClear}
+            remarks={remarks}
+            onAnswer={handleChange}
+            onRemark={handleRemark}
           />
         </div>
       </div>
@@ -758,21 +881,33 @@ function Step3PresetQuestionnaire({
             id="q3aSeniorManagement"
             label="A. Does the company have a professional and well-qualified senior management team with industry experience and a good track record?"
             value={formData.q3aSeniorManagement}
+            remarks={remarks}
+            onAnswer={handleChange}
+            onRemark={handleRemark}
           />
           <YesNoQuestion
             id="q3bIndependentBoard"
             label="B. Are there credible independent members on the board who add value to the company?"
             value={formData.q3bIndependentBoard}
+            remarks={remarks}
+            onAnswer={handleChange}
+            onRemark={handleRemark}
           />
           <YesNoQuestion
             id="q3cMidManagement"
             label="C. Is there experienced staff at the mid-management level?"
             value={formData.q3cMidManagement}
+            remarks={remarks}
+            onAnswer={handleChange}
+            onRemark={handleRemark}
           />
           <YesNoQuestion
             id="q3dKeyPersonnel"
             label="D. Are key personnel within the organization recognized as per accepted market practices, regulatory norms, and corporate governance requirements (e.g., compliance officer appointed)?"
             value={formData.q3dKeyPersonnel}
+            remarks={remarks}
+            onAnswer={handleChange}
+            onRemark={handleRemark}
           />
         </div>
       </div>
@@ -787,12 +922,18 @@ function Step3PresetQuestionnaire({
             value={formData.q4PaidUpCapital}
             unit="Cr"
             placeholder="e.g., 10"
+            remarks={remarks}
+            onRemark={handleRemark}
+            onChange={handleChange}
           />
           <NumberInput
             id="q5OutstandingShares"
             label="5. Enter the number of shares outstanding"
             value={formData.q5OutstandingShares}
             placeholder="e.g., 1000000"
+            remarks={remarks}
+            onRemark={handleRemark}
+            onChange={handleChange}
           />
           <NumberInput
             id="q6NetWorth"
@@ -800,6 +941,9 @@ function Step3PresetQuestionnaire({
             value={formData.q6NetWorth}
             unit="Cr"
             placeholder="e.g., 25"
+            remarks={remarks}
+            onRemark={handleRemark}
+            onChange={handleChange}
           />
           <NumberInput
             id="q7Borrowings"
@@ -807,12 +951,18 @@ function Step3PresetQuestionnaire({
             value={formData.q7Borrowings}
             unit="Cr"
             placeholder="e.g., 5"
+            remarks={remarks}
+            onRemark={handleRemark}
+            onChange={handleChange}
           />
           <NumberInput
             id="q8DebtEquityRatio"
             label="8. Enter your company's Debt–Equity Ratio"
             value={formData.q8DebtEquityRatio}
             placeholder="e.g., 0.5"
+            remarks={remarks}
+            onRemark={handleRemark}
+            onChange={handleChange}
           />
 
           <div className="p-4 rounded-lg bg-background/50">
@@ -868,6 +1018,25 @@ function Step3PresetQuestionnaire({
                   className="w-full h-10 px-3 rounded-lg border border-foreground/20 bg-background"
                 />
               </div>
+            </div>
+            <div className="mt-3">
+              <label className="text-xs text-foreground/50 mb-1 block">
+                Reason / Remarks <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={remarks["q9Turnover"] || ""}
+                onChange={(e) => handleRemark("q9Turnover", e.target.value)}
+                placeholder="Provide context for turnover figures..."
+                rows={2}
+                className={`w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none ${
+                  !remarks["q9Turnover"]?.trim()
+                    ? "border-red-400/50 focus:border-red-400"
+                    : "border-foreground/20 focus:border-primary"
+                }`}
+              />
+              {!remarks["q9Turnover"]?.trim() && (
+                <p className="text-xs text-red-400 mt-1">Required</p>
+              )}
             </div>
           </div>
 
@@ -925,6 +1094,25 @@ function Step3PresetQuestionnaire({
                 />
               </div>
             </div>
+            <div className="mt-3">
+              <label className="text-xs text-foreground/50 mb-1 block">
+                Reason / Remarks <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={remarks["q10Turnover"] || ""}
+                onChange={(e) => handleRemark("q10Turnover", e.target.value)}
+                placeholder="Provide context for turnover figures..."
+                rows={2}
+                className={`w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none ${
+                  !remarks["q10Turnover"]?.trim()
+                    ? "border-red-400/50 focus:border-red-400"
+                    : "border-foreground/20 focus:border-primary"
+                }`}
+              />
+              {!remarks["q9Turnover"]?.trim() && (
+                <p className="text-xs text-red-400 mt-1">Required</p>
+              )}
+            </div>
           </div>
 
           <NumberInput
@@ -933,18 +1121,12 @@ function Step3PresetQuestionnaire({
             value={formData.q11Eps}
             unit="₹"
             placeholder="e.g., 15"
+            remarks={remarks}
+            onRemark={handleRemark}
+            onChange={handleChange}
           />
         </div>
       </div>
-
-      {/* Saving indicator */}
-      {saving && (
-        <div className="fixed bottom-4 right-4 bg-foreground/90 text-background px-4 py-2 rounded-lg text-sm flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Saving...
-        </div>
-      )}
-
       {/* Navigation */}
       <div className="flex justify-between">
         <button
@@ -956,8 +1138,44 @@ function Step3PresetQuestionnaire({
           Back
         </button>
         <button
-          onClick={onSubmit}
-          disabled={isPending || saving}
+          onClick={async () => {
+            const yesNoFields = [
+              "hasInvestmentPlan",
+              "q2aGovernancePlan",
+              "q2bFinancialReporting",
+              "q2cControlSystems",
+              "q2dShareholdingClear",
+              "q3aSeniorManagement",
+              "q3bIndependentBoard",
+              "q3cMidManagement",
+              "q3dKeyPersonnel",
+              "q4PaidUpCapital",
+              "q5OutstandingShares",
+              "q6NetWorth",
+              "q7Borrowings",
+              "q8DebtEquityRatio",
+              "q9Turnover",
+              "q10Turnover",
+              "q11Eps",
+            ];
+            const missing = yesNoFields.filter((f) => !remarks[f]?.trim());
+            if (missing.length > 0) {
+              toast.error(
+                `Please provide remarks for all ${missing.length} question(s)`,
+              );
+              return;
+            }
+            // Save all answers + remarks in one shot
+            const result = await updatePresetAnswers(assessment.id, {
+              ...formData,
+              remarks,
+            });
+            if (!result.success) {
+              toast.error("Failed to save answers");
+              return;
+            }
+            onSubmit();
+          }}
           className="inline-flex items-center gap-2 px-8 h-12 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition-all"
         >
           {isPending ? (

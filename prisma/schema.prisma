@@ -287,6 +287,8 @@ model Assessment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  remarks Json @default("{}")
+
   @@index([assessorId])
   @@index([status])
   @@index([status, submittedAt])
@@ -310,6 +312,7 @@ model Document {
   uploadedBy   User    @relation("UploadedDocuments", fields: [uploadedById], references: [id])
   uploadedAt   DateTime @default(now())
 
+ source    String   @default("TEAM") // "CLIENT" or "TEAM"
   @@index([leadId])
   @@index([uploadedById])
   @@map("document")
