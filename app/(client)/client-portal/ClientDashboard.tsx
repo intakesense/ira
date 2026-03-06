@@ -9,6 +9,9 @@ interface LeadData {
   companyName: string;
   contactPerson: string;
   cin: string;
+  createdAt: Date;
+  paymentLinkSentAt: Date | null;
+  portalAccessSentAt: Date | null;
   assessment: {
     totalScore: number | null;
     percentage: number | null;
@@ -706,23 +709,62 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
 
   const checklistDone = checklist.filter((c) => c.done).length;
 
+  const fmt = (d?: Date | string | null) =>
+    d
+      ? new Date(d).toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : null;
+
+  const assessmentDone = !!a?.rating;
+  const paymentDone = true; // status is COMPLETED means payment received
+  const portalActive = true; // they are logged in
+
   const timeline: TimelineItem[] = [
     {
-      label: "Assessment Complete",
-      date: "Completed",
+      label: "Lead Created",
+      date: fmt(lead.createdAt) ?? "Completed",
       done: true,
       active: false,
     },
-    { label: "Payment Received", date: "Completed", done: true, active: false },
+    {
+      label: "Assessment Completed",
+      date: assessmentDone ? "Completed" : "Pending",
+      done: assessmentDone,
+      active: !assessmentDone,
+    },
+    {
+      label: "Payment Received",
+      date: fmt(lead.paymentLinkSentAt) ?? "Completed",
+      done: paymentDone,
+      active: false,
+    },
     {
       label: "Portal Access Granted",
-      date: "Active",
+      date: fmt(lead.portalAccessSentAt) ?? "Active",
       done: false,
-      active: true,
+      active: portalActive,
     },
-    { label: "DRHP Preparation", date: "Upcoming", done: false, active: false },
-    { label: "SEBI Review", date: "Upcoming", done: false, active: false },
-    { label: "IPO Listing", date: "Upcoming", done: false, active: false },
+    {
+      label: "DRHP Preparation",
+      date: "Upcoming",
+      done: false,
+      active: false,
+    },
+    {
+      label: "SEBI Review",
+      date: "Upcoming",
+      done: false,
+      active: false,
+    },
+    {
+      label: "IPO Listing",
+      date: "Upcoming",
+      done: false,
+      active: false,
+    },
   ];
 
   const sendMessage = async () => {

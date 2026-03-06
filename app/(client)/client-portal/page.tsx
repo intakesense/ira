@@ -38,6 +38,9 @@ export default async function ClientPortalPage() {
         companyName: lead.companyName,
         contactPerson: lead.contactPerson,
         cin: lead.cin,
+        createdAt: lead.createdAt,
+        paymentLinkSentAt: lead.paymentLinkSentAt ?? null,
+        portalAccessSentAt: lead.portalAccessSentAt ?? null,
         assessment: lead.assessment
           ? {
               totalScore: lead.assessment.totalScore,
