@@ -138,7 +138,7 @@ enum OrganicSubmissionStatus {
 model Lead {
   id        String     @id @default(cuid())
   leadId    String     @unique // Display ID (LD-2024-001)
-
+   
   // Company info
   companyName    String
   contactPerson  String
@@ -153,7 +153,6 @@ model Lead {
   probe42LegalName      String?
   probe42Status         String?
   probe42Classification String?
-  probe42PaidUpCapital  BigInt?
   probe42AuthCapital    BigInt?
   probe42Pan            String?
   probe42Website        String?
@@ -162,7 +161,7 @@ model Lead {
   probe42DirectorCount  Int?
   probe42GstCount       Int?
   probe42Data           Json?     // Full Probe42 response
-
+  probe42PaidUpCapital   BigInt?
   // Probe42 Report Download Status
   probe42ReportDownloaded  Boolean   @default(false)
   probe42ReportDownloadedAt DateTime?
@@ -439,3 +438,4 @@ model OrganicSubmission {
   @@index([isEmailVerified])
   @@map("organic_submission")
 }
+

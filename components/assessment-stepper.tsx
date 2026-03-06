@@ -601,8 +601,8 @@ function Step3DynamicQuestionnaire({
             if (r.min != null && r.max != null && r.min === r.max) return `= ${r.min}${u}`
             if (r.min == null && r.max == null) return `Any value`
             if (r.min == null) return `< ${r.max}${u}`
-            if (r.max == null) return `≥ ${r.min}${u}`
-            return `${r.min} – ${r.max}${u}`
+            if (r.max == null) return `ΓëÑ ${r.min}${u}`
+            return `${r.min} ΓÇô ${r.max}${u}`
         }
 
         return (
@@ -657,7 +657,7 @@ function Step3DynamicQuestionnaire({
                                 >
                                     {rangeLabel(r)}
                                     <span className={`font-semibold ${active ? "text-primary" : "text-foreground/50"}`}>
-                                        → {r.score} pts
+                                        ΓåÆ {r.score} pts
                                     </span>
                                 </span>
                             )

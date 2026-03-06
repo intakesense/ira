@@ -1,48 +1,161 @@
-import { BarChart3, ShieldCheck, Users, Briefcase } from 'lucide-react';
+import { BarChart3, ShieldCheck, Users, Briefcase } from "lucide-react";
+import { colors } from "@/lib/theme/colors";
 
 export const Features = () => {
   return (
-    <section className="py-24 bg-white" id="features">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-brand-600 font-semibold tracking-wide uppercase text-sm">Beyond the Checklist</h2>
-          <h3 className="mt-2 text-3xl font-serif font-bold text-gray-900 sm:text-4xl">
+    <section
+      style={{
+        padding: "6rem 0",
+        backgroundColor: colors.white,
+      }}
+      id="features"
+    >
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 1rem" }}>
+        {/* HEADER */}
+        <div
+          style={{
+            textAlign: "center",
+            maxWidth: 720,
+            margin: "0 auto 4rem",
+          }}
+        >
+          <h2
+            style={{
+              color: colors.brand[700],
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              fontSize: 12,
+              textTransform: "uppercase",
+            }}
+          >
+            Beyond the Checklist
+          </h2>
+
+          <h3
+            style={{
+              marginTop: 12,
+              fontSize: 36,
+              fontWeight: 700,
+              color: colors.gray[900],
+            }}
+          >
             The IRA Deep-Dive Assessment
           </h3>
-          <p className="mt-4 text-xl text-gray-500">
-            Eligibility is just the first step. Our internal IRA tool analyzes over 50+ financial data points to ensure listing success.
+
+          <p
+            style={{
+              marginTop: 16,
+              fontSize: 18,
+              color: colors.gray[500],
+              lineHeight: 1.6,
+            }}
+          >
+            Eligibility is just the first step. Our internal IRA tool analyzes
+            50+ financial and strategic signals to maximize listing success.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        {/* GRID */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: 32,
+          }}
+        >
           {[
             {
-              icon: <BarChart3 className="w-6 h-6 text-white" />,
+              icon: BarChart3,
               title: "3-Year Financial Scan",
-              desc: "We parse your balance sheets and P&L statements to identify growth patterns preferred by investors."
+              desc: "Deep analysis of balance sheets and P&L trends investors care about.",
             },
             {
-              icon: <ShieldCheck className="w-6 h-6 text-white" />,
+              icon: ShieldCheck,
               title: "Compliance Audit",
-              desc: "Automated check against the latest SEBI regulations and exchange compliance norms."
+              desc: "Automated checks against the latest SEBI and exchange regulations.",
             },
             {
-              icon: <Users className="w-6 h-6 text-white" />,
+              icon: Users,
               title: "Peer Benchmarking",
-              desc: "Compare your metrics against recently listed competitors in your sector."
+              desc: "Compare your metrics against recently listed companies in your sector.",
             },
             {
-              icon: <Briefcase className="w-6 h-6 text-white" />,
+              icon: Briefcase,
               title: "Valuation Estimator",
-              desc: "Get a preliminary valuation range based on current market sentiment and fundamentals."
-            }
-          ].map((feature, idx) => (
-            <div key={idx} className="bg-gray-50 rounded-xl p-6 border border-gray-100 hover:shadow-lg transition-shadow">
-              <div className="w-12 h-12 bg-brand-600 rounded-lg flex items-center justify-center mb-4 shadow-md">
-                {feature.icon}
+              desc: "Preliminary valuation range based on fundamentals and market sentiment.",
+            },
+          ].map(({ icon: Icon, title, desc }) => (
+            <div
+              key={title}
+              style={{
+                padding: 28,
+                borderRadius: 20,
+                background: `linear-gradient(
+                  135deg,
+                  rgba(37, 99, 235, 0.06),
+                  rgba(219, 234, 254, 0.55)
+                )`,
+                border: "1px solid rgba(37, 99, 235, 0.15)",
+                backdropFilter: "blur(6px)",
+                boxShadow: "0 14px 30px rgba(29,78,216,0.15)",
+                transition: "all 0.35s ease",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-8px)";
+                e.currentTarget.style.boxShadow =
+                  "0 26px 60px rgba(29,78,216,0.35)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow =
+                  "0 14px 30px rgba(29,78,216,0.15)";
+              }}
+            >
+              {/* ICON */}
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 14,
+                  background: `linear-gradient(
+                    135deg,
+                    ${colors.brand[700]},
+                    ${colors.brand[600]}
+                  )`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 20,
+                  boxShadow: "0 10px 20px rgba(29,78,216,0.4)",
+                }}
+              >
+                <Icon size={26} color={colors.white} />
               </div>
-              <h4 className="text-lg font-bold text-gray-900 mb-2">{feature.title}</h4>
-              <p className="text-gray-600 text-sm leading-relaxed">{feature.desc}</p>
+
+              <h4
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: colors.gray[900],
+                  marginBottom: 10,
+                }}
+              >
+                {title}
+              </h4>
+
+              <p
+                style={{
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  color: colors.gray[500],
+                }}
+              >
+                {desc}
+              </p>
             </div>
           ))}
         </div>

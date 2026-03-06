@@ -21,6 +21,9 @@ import {
   getSubmissionApprovedEmailText,
   getSubmissionRejectedEmailHTML,
   getSubmissionRejectedEmailText,
+  getPaymentLinkEmailHTML,
+  getPaymentLinkEmailText,
+  type PaymentLinkEmailData,
   type LeadAssignmentEmailData,
   type AssessmentSubmittedEmailData,
   type AssessmentRejectedEmailData,
@@ -28,6 +31,12 @@ import {
   type EmailVerificationEmailData,
   type SubmissionApprovedEmailData,
   type SubmissionRejectedEmailData
+} from './email-templates'
+import {
+  // ... existing imports
+  getClientCredentialsEmailHTML,
+  getClientCredentialsEmailText,
+  type ClientCredentialsEmailData,
 } from './email-templates'
 
 // ============================================
@@ -351,4 +360,47 @@ export async function sendBulkEmails(
       }
     }
   })
+}
+
+
+/** Send payment link to customer
+ * Called when a payment link is generated via Razorpay
+ */
+export async function sendPaymentLinkEmail(
+  data: PaymentLinkEmailData
+): Promise<EmailResult> {
+  const subject = data.amount 
+    ? `Your IRA Score Improvement Plan – IRA Platform`
+    : 'Payment Request - IRA Platform'
+    
+  const html = getPaymentLinkEmailHTML(data)
+  const text = getPaymentLinkEmailText(data)
+
+  if (!data.recipientEmail) {
+    console.error('[Email] No recipient email provided', { data })
+    return {
+      success: false,
+      error: 'Recipient email not provided'
+    }
+  }
+
+  return sendEmail(data.recipientEmail, subject, html, text)
+}
+
+/**
+ * Send lient credentials when client made the payment.
+ */
+
+export async function sendClientCredentialsEmail(
+  data: ClientCredentialsEmailData
+): Promise<EmailResult> {
+  const subject = `Your IPO Readiness Portal Access - ${data.companyName}`
+  const html = getClientCredentialsEmailHTML(data)
+  const text = getClientCredentialsEmailText(data)
+
+  if (!data.recipientEmail) {
+    return { success: false, error: 'Recipient email not provided' }
+  }
+
+  return sendEmail(data.recipientEmail, subject, html, text)
 }

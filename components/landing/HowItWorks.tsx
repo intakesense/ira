@@ -1,60 +1,170 @@
-import { ClipboardCheck, LineChart, Building } from 'lucide-react';
+"use client";
+
+import { ClipboardCheck, LineChart, Building } from "lucide-react";
+import { colors } from "@/lib/theme/colors";
 
 export const HowItWorks = () => {
   return (
-    <section className="py-20 bg-gray-50" id="how-it-works">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-brand-600 font-semibold tracking-wide uppercase text-sm">Our Process</h2>
-          <h3 className="mt-2 text-3xl font-serif font-bold text-gray-900 sm:text-4xl">
+    <section
+      id="how-it-works"
+      style={{
+        padding: "96px 0",
+        backgroundColor: colors.white,
+      }}
+    >
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 16px" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 72 }}>
+          <h2
+            style={{
+              color: colors.brand[700],
+              fontWeight: 600,
+              fontSize: 14,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            Our Process
+          </h2>
+
+          <h3
+            style={{
+              marginTop: 12,
+              fontSize: 40,
+              fontWeight: 800,
+              color: colors.gray[900],
+            }}
+          >
             Your Journey to Listing
           </h3>
-          <p className="mt-4 text-xl text-gray-500 max-w-2xl mx-auto">
-            From initial check to ringing the bell, we guide you through every step of the IPO process.
+
+          <p
+            style={{
+              marginTop: 16,
+              fontSize: 18,
+              color: colors.gray[500],
+              maxWidth: 680,
+              marginInline: "auto",
+            }}
+          >
+            From eligibility check to ringing the bell, we guide you through
+            every stage of the IPO journey.
           </p>
         </div>
 
-        <div className="relative">
-          {/* Connecting Line (Desktop) */}
-          <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gray-200 -translate-y-1/2 z-0"></div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative z-10">
-            {/* Step 1 */}
-            <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-100 flex flex-col items-center text-center group hover:-translate-y-1 transition-transform duration-300">
-              <div className="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mb-6 border-4 border-white shadow-sm group-hover:bg-brand-600 group-hover:text-white transition-colors">
-                <ClipboardCheck className="w-8 h-8 text-brand-600 group-hover:text-white" />
+        {/* Cards */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: 48,
+          }}
+        >
+          {[
+            {
+              step: "STEP 1",
+              title: "Check Eligibility",
+              desc: "Instantly check if your company meets BSE/NSE criteria using our free eligibility tool.",
+              Icon: ClipboardCheck,
+            },
+            {
+              step: "STEP 2",
+              title: "IRA Deep Dive",
+              desc: "We analyze financials, compliance, and sector performance to generate your IRA Score™.",
+              Icon: LineChart,
+            },
+            {
+              step: "STEP 3",
+              title: "IPO Listing",
+              desc: "End-to-end support for DRHP, merchant bankers, roadshows, or a strategic readiness plan.",
+              Icon: Building,
+            },
+          ].map(({ step, title, desc, Icon }) => (
+            <div
+              key={step}
+              style={{
+                padding: 36,
+                borderRadius: 20,
+                background: `linear-gradient(
+  135deg,
+  rgba(37, 99, 235, 0.08),
+  rgba(219, 234, 254, 0.6)
+)`,
+                backdropFilter: "blur(6px)",
+                border: "1px solid rgba(37, 99, 235, 0.15)",
+                color: colors.white,
+                boxShadow: "0 20px 40px rgba(3,18,43,0.35)",
+                transition: "all 0.35s ease",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-10px)";
+                e.currentTarget.style.boxShadow =
+                  "0 30px 60px rgba(37,99,235,0.45)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow =
+                  "0 20px 40px rgba(3,18,43,0.35)";
+              }}
+            >
+              {/* Icon */}
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 16,
+                  backgroundColor: colors.blue[100],
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 24,
+                }}
+              >
+                <Icon size={30} color={colors.brand[700]} />
               </div>
-              <div className="bg-brand-600 text-white text-xs font-bold px-3 py-1 rounded-full mb-4">STEP 1</div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Check Eligibility</h4>
-              <p className="text-gray-600 text-sm">
-                Use our free instant tool on irascore.com to check if you meet the basic criteria for BSE/NSE listing. It takes less than 2 minutes.
+
+              {/* Step badge */}
+              <div
+                style={{
+                  display: "inline-block",
+                  backgroundColor: colors.brand[700],
+                  color: colors.white,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 14px",
+                  borderRadius: 999,
+                  marginBottom: 20,
+                }}
+              >
+                {step}
+              </div>
+
+              <h4
+                style={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  marginBottom: 14,
+                  color: colors.blue[800],
+                }}
+              >
+                {title}
+              </h4>
+
+              <p
+                style={{
+                  fontSize: 15,
+                  lineHeight: 1.7,
+                  color: colors.blue[800],
+                }}
+              >
+                {desc}
               </p>
             </div>
-
-            {/* Step 2 */}
-            <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-100 flex flex-col items-center text-center group hover:-translate-y-1 transition-transform duration-300">
-              <div className="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mb-6 border-4 border-white shadow-sm group-hover:bg-brand-600 group-hover:text-white transition-colors">
-                <LineChart className="w-8 h-8 text-brand-600 group-hover:text-white" />
-              </div>
-              <div className="bg-brand-600 text-white text-xs font-bold px-3 py-1 rounded-full mb-4">STEP 2</div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">IRA Deep Dive</h4>
-              <p className="text-gray-600 text-sm">
-                Our internal IRA tool analyzes your last 3 years of financial data, compliance history, and sector performance to generate your readiness score.
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-100 flex flex-col items-center text-center group hover:-translate-y-1 transition-transform duration-300">
-              <div className="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mb-6 border-4 border-white shadow-sm group-hover:bg-brand-600 group-hover:text-white transition-colors">
-                <Building className="w-8 h-8 text-brand-600 group-hover:text-white" />
-              </div>
-              <div className="bg-brand-600 text-white text-xs font-bold px-3 py-1 rounded-full mb-4">STEP 3</div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">IPO Listing</h4>
-              <p className="text-gray-600 text-sm">
-                If eligible, we manage your DRHP filing, merchant banker selection, and roadshows. If not, we provide a strategic plan to get you there.
-              </p>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
     </section>
