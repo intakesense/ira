@@ -3,72 +3,85 @@
 // Uses inline styles for maximum email client compatibility
 
 export interface LeadAssignmentEmailData {
-  assessorName: string
-  assessorEmail: string
-  companyName: string
-  leadId: string
-  cin: string
-  reviewerName: string
-  actionUrl: string
+  assessorName: string;
+  assessorEmail: string;
+  companyName: string;
+  leadId: string;
+  cin: string;
+  reviewerName: string;
+  actionUrl: string;
 }
 
 export interface AssessmentSubmittedEmailData {
-  reviewerName: string
-  reviewerEmail: string
-  companyName: string
-  leadId: string
-  assessorName: string
-  totalScore: number
-  percentage: number
-  rating: string
-  actionUrl: string
+  reviewerName: string;
+  reviewerEmail: string;
+  companyName: string;
+  leadId: string;
+  assessorName: string;
+  totalScore: number;
+  percentage: number;
+  rating: string;
+  actionUrl: string;
 }
 
 export interface AssessmentRejectedEmailData {
-  assessorName: string
-  assessorEmail: string
-  companyName: string
-  leadId: string
-  reviewerName: string
-  comments: string
-  actionUrl: string
+  assessorName: string;
+  assessorEmail: string;
+  companyName: string;
+  leadId: string;
+  reviewerName: string;
+  comments: string;
+  actionUrl: string;
 }
 
 export interface OrganicSubmissionEmailData {
-  reviewerName: string
-  reviewerEmail: string
-  companyName: string
-  cin: string
-  contactPerson: string
-  contactEmail: string
-  contactPhone: string | null
+  reviewerName: string;
+  reviewerEmail: string;
+  companyName: string;
+  cin: string;
+  contactPerson: string;
+  contactEmail: string;
+  contactPhone: string | null;
 }
 
 export interface EmailVerificationEmailData {
-  contactPerson: string
-  contactEmail: string
-  companyName: string
-  verificationToken: string
+  contactPerson: string;
+  contactEmail: string;
+  companyName: string;
+  verificationToken: string;
 }
 
 export interface SubmissionApprovedEmailData {
-  contactPerson: string
-  contactEmail: string
-  companyName: string
-  leadId: string
+  contactPerson: string;
+  contactEmail: string;
+  companyName: string;
+  leadId: string;
 }
 
 export interface SubmissionRejectedEmailData {
-  contactPerson: string
-  contactEmail: string
-  companyName: string
-  rejectionReason?: string
+  contactPerson: string;
+  contactEmail: string;
+  companyName: string;
+  rejectionReason?: string;
+}
+
+export interface PaymentLinkEmailData {
+  recipientEmail: string;
+  amount?: string;
+  description?: string;
+  paymentLink: string;
+  recipientName?: string;
+  invoiceNumber?: string;
+  dueDate?: string;
+  items?: { label: string; amount: string }[];
 }
 
 /**
  * Email template for lead assignment notification (sent to assessor)
  */
-export function getLeadAssignmentEmailHTML(data: LeadAssignmentEmailData): string {
+export function getLeadAssignmentEmailHTML(
+  data: LeadAssignmentEmailData,
+): string {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -152,13 +165,15 @@ export function getLeadAssignmentEmailHTML(data: LeadAssignmentEmailData): strin
   </table>
 </body>
 </html>
-  `.trim()
+  `.trim();
 }
 
 /**
  * Plain text version of lead assignment email (fallback)
  */
-export function getLeadAssignmentEmailText(data: LeadAssignmentEmailData): string {
+export function getLeadAssignmentEmailText(
+  data: LeadAssignmentEmailData,
+): string {
   return `
 New Lead Assigned
 
@@ -176,23 +191,25 @@ This is an automated notification from the IRA Platform. If you have any questio
 
 ---
 IPO Readiness Assessment Platform
-  `.trim()
+  `.trim();
 }
 
 /**
  * Email template for assessment submission notification (sent to reviewer)
  */
-export function getAssessmentSubmittedEmailHTML(data: AssessmentSubmittedEmailData): string {
+export function getAssessmentSubmittedEmailHTML(
+  data: AssessmentSubmittedEmailData,
+): string {
   // Determine rating color
-  let ratingColor = '#28a745' // IPO_READY - green
-  let ratingText = 'IPO Ready'
+  let ratingColor = "#28a745"; // IPO_READY - green
+  let ratingText = "IPO Ready";
 
-  if (data.rating === 'NEEDS_IMPROVEMENT') {
-    ratingColor = '#ffc107' // yellow
-    ratingText = 'Needs Improvement'
-  } else if (data.rating === 'NOT_READY') {
-    ratingColor = '#dc3545' // red
-    ratingText = 'Not Ready'
+  if (data.rating === "NEEDS_IMPROVEMENT") {
+    ratingColor = "#ffc107"; // yellow
+    ratingText = "Needs Improvement";
+  } else if (data.rating === "NOT_READY") {
+    ratingColor = "#dc3545"; // red
+    ratingText = "Not Ready";
   }
 
   return `
@@ -291,16 +308,18 @@ export function getAssessmentSubmittedEmailHTML(data: AssessmentSubmittedEmailDa
   </table>
 </body>
 </html>
-  `.trim()
+  `.trim();
 }
 
 /**
  * Plain text version of assessment submitted email (fallback)
  */
-export function getAssessmentSubmittedEmailText(data: AssessmentSubmittedEmailData): string {
-  let ratingText = 'IPO Ready'
-  if (data.rating === 'NEEDS_IMPROVEMENT') ratingText = 'Needs Improvement'
-  else if (data.rating === 'NOT_READY') ratingText = 'Not Ready'
+export function getAssessmentSubmittedEmailText(
+  data: AssessmentSubmittedEmailData,
+): string {
+  let ratingText = "IPO Ready";
+  if (data.rating === "NEEDS_IMPROVEMENT") ratingText = "Needs Improvement";
+  else if (data.rating === "NOT_READY") ratingText = "Not Ready";
 
   return `
 Assessment Ready for Review
@@ -324,13 +343,15 @@ This is an automated notification from the IRA Platform. Please review the asses
 
 ---
 IPO Readiness Assessment Platform
-  `.trim()
+  `.trim();
 }
 
 /**
  * Email template for assessment rejection notification (sent to assessor)
  */
-export function getAssessmentRejectedEmailHTML(data: AssessmentRejectedEmailData): string {
+export function getAssessmentRejectedEmailHTML(
+  data: AssessmentRejectedEmailData,
+): string {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -425,13 +446,15 @@ ${data.comments}
   </table>
 </body>
 </html>
-  `.trim()
+  `.trim();
 }
 
 /**
  * Plain text version of assessment rejected email (fallback)
  */
-export function getAssessmentRejectedEmailText(data: AssessmentRejectedEmailData): string {
+export function getAssessmentRejectedEmailText(
+  data: AssessmentRejectedEmailData,
+): string {
   return `
 Assessment Revision Required
 
@@ -451,15 +474,20 @@ This is an automated notification from the IRA Platform. If you have questions a
 
 ---
 IPO Readiness Assessment Platform
-  `.trim()
+  `.trim();
 }
 
 /**
  * Email template for organic submission notification (sent to reviewer)
  */
-export function getOrganicSubmissionEmailHTML(data: OrganicSubmissionEmailData): string {
-  const baseUrl = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const submissionsUrl = `${baseUrl}/dashboard/organic-submissions`
+export function getOrganicSubmissionEmailHTML(
+  data: OrganicSubmissionEmailData,
+): string {
+  const baseUrl =
+    process.env.BETTER_AUTH_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+  const submissionsUrl = `${baseUrl}/dashboard/organic-submissions`;
 
   return `
 <!DOCTYPE html>
@@ -528,14 +556,18 @@ export function getOrganicSubmissionEmailHTML(data: OrganicSubmissionEmailData):
                         ${data.contactEmail}
                       </a>
                     </p>
-                    ${data.contactPhone ? `
+                    ${
+                      data.contactPhone
+                        ? `
                     <p style="margin: 0; font-size: 15px; color: #666;">
                       <strong style="color: #333;">Phone:</strong>
                       <a href="tel:${data.contactPhone}" style="color: #667eea; text-decoration: none;">
                         ${data.contactPhone}
                       </a>
                     </p>
-                    ` : ''}
+                    `
+                        : ""
+                    }
                   </td>
                 </tr>
               </table>
@@ -572,15 +604,20 @@ export function getOrganicSubmissionEmailHTML(data: OrganicSubmissionEmailData):
   </table>
 </body>
 </html>
-  `.trim()
+  `.trim();
 }
 
 /**
  * Plain text version of organic submission email (fallback)
  */
-export function getOrganicSubmissionEmailText(data: OrganicSubmissionEmailData): string {
-  const baseUrl = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const submissionsUrl = `${baseUrl}/dashboard/organic-submissions`
+export function getOrganicSubmissionEmailText(
+  data: OrganicSubmissionEmailData,
+): string {
+  const baseUrl =
+    process.env.BETTER_AUTH_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+  const submissionsUrl = `${baseUrl}/dashboard/organic-submissions`;
 
   return `
 New Website Lead Submission
@@ -595,8 +632,12 @@ CIN: ${data.cin}
 
 CONTACT INFORMATION
 Name: ${data.contactPerson}
-Email: ${data.contactEmail}${data.contactPhone ? `
-Phone: ${data.contactPhone}` : ''}
+Email: ${data.contactEmail}${
+    data.contactPhone
+      ? `
+Phone: ${data.contactPhone}`
+      : ""
+  }
 
 Review Submission: ${submissionsUrl}
 
@@ -604,15 +645,20 @@ This is an automated notification from the IRA Platform. You can view all pendin
 
 ---
 IPO Readiness Assessment Platform
-  `.trim()
+  `.trim();
 }
 
 /**
  * Email template for email verification (sent to lead contact)
  */
-export function getEmailVerificationEmailHTML(data: EmailVerificationEmailData): string {
-  const baseUrl = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const verificationUrl = `${baseUrl}/verify-email?token=${data.verificationToken}`
+export function getEmailVerificationEmailHTML(
+  data: EmailVerificationEmailData,
+): string {
+  const baseUrl =
+    process.env.BETTER_AUTH_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+  const verificationUrl = `${baseUrl}/verify-email?token=${data.verificationToken}`;
 
   return `
 <!DOCTYPE html>
@@ -710,15 +756,20 @@ export function getEmailVerificationEmailHTML(data: EmailVerificationEmailData):
   </table>
 </body>
 </html>
-  `.trim()
+  `.trim();
 }
 
 /**
  * Plain text version of email verification email (fallback)
  */
-export function getEmailVerificationEmailText(data: EmailVerificationEmailData): string {
-  const baseUrl = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const verificationUrl = `${baseUrl}/verify-email?token=${data.verificationToken}`
+export function getEmailVerificationEmailText(
+  data: EmailVerificationEmailData,
+): string {
+  const baseUrl =
+    process.env.BETTER_AUTH_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+  const verificationUrl = `${baseUrl}/verify-email?token=${data.verificationToken}`;
 
   return `
 Verify Your Email Address
@@ -738,13 +789,15 @@ This is an automated email from the IRA Platform. For support, please contact su
 
 ---
 IPO Readiness Assessment Platform
-  `.trim()
+  `.trim();
 }
 
 /**
  * Email template for submission approval (sent to company contact)
  */
-export function getSubmissionApprovedEmailHTML(data: SubmissionApprovedEmailData): string {
+export function getSubmissionApprovedEmailHTML(
+  data: SubmissionApprovedEmailData,
+): string {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -837,13 +890,15 @@ export function getSubmissionApprovedEmailHTML(data: SubmissionApprovedEmailData
   </table>
 </body>
 </html>
-  `.trim()
+  `.trim();
 }
 
 /**
  * Plain text version of submission approval email
  */
-export function getSubmissionApprovedEmailText(data: SubmissionApprovedEmailData): string {
+export function getSubmissionApprovedEmailText(
+  data: SubmissionApprovedEmailData,
+): string {
   return `
 Submission Approved!
 
@@ -866,13 +921,15 @@ This is an automated email from the IRA Platform. For support, please contact su
 
 ---
 IPO Readiness Assessment Platform
-  `.trim()
+  `.trim();
 }
 
 /**
  * Email template for submission rejection (sent to company contact)
  */
-export function getSubmissionRejectedEmailHTML(data: SubmissionRejectedEmailData): string {
+export function getSubmissionRejectedEmailHTML(
+  data: SubmissionRejectedEmailData,
+): string {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -907,7 +964,9 @@ export function getSubmissionRejectedEmailHTML(data: SubmissionRejectedEmailData
                 Thank you for your interest in our IPO readiness assessment service. After reviewing your submission for <strong>${data.companyName}</strong>, we're unable to proceed with an assessment at this time.
               </p>
 
-              ${data.rejectionReason ? `
+              ${
+                data.rejectionReason
+                  ? `
               <!-- Reason Card -->
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; margin-bottom: 30px;">
                 <tr>
@@ -921,7 +980,9 @@ export function getSubmissionRejectedEmailHTML(data: SubmissionRejectedEmailData
                   </td>
                 </tr>
               </table>
-              ` : ''}
+              `
+                  : ""
+              }
 
               <!-- Next Steps -->
               <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
@@ -958,13 +1019,15 @@ export function getSubmissionRejectedEmailHTML(data: SubmissionRejectedEmailData
   </table>
 </body>
 </html>
-  `.trim()
+  `.trim();
 }
 
 /**
  * Plain text version of submission rejection email
  */
-export function getSubmissionRejectedEmailText(data: SubmissionRejectedEmailData): string {
+export function getSubmissionRejectedEmailText(
+  data: SubmissionRejectedEmailData,
+): string {
   return `
 Submission Update
 
@@ -972,7 +1035,7 @@ Hi ${data.contactPerson},
 
 Thank you for your interest in our IPO readiness assessment service. After reviewing your submission for ${data.companyName}, we're unable to proceed with an assessment at this time.
 
-${data.rejectionReason ? `REASON:\n${data.rejectionReason}\n\n` : ''}WHAT YOU CAN DO:
+${data.rejectionReason ? `REASON:\n${data.rejectionReason}\n\n` : ""}WHAT YOU CAN DO:
 
 - Review and address any concerns mentioned above
 - Feel free to resubmit your application in the future
@@ -984,5 +1047,239 @@ This is an automated email from the IRA Platform. For support, please contact su
 
 ---
 IPO Readiness Assessment Platform
-  `.trim()
+  `.trim();
+}
+
+/**
+ * Email template for payment link
+ */
+
+export function getPaymentLinkEmailHTML(data: PaymentLinkEmailData): string {
+  const itemRows = data.items
+    ? data.items
+        .map(
+          (item) => `
+      <tr>
+        <td style="padding: 10px 0; font-size: 14px; color: #555; border-bottom: 1px solid #f0f0f0;">${item.label}</td>
+        <td style="padding: 10px 0; font-size: 14px; color: #555; text-align: right; border-bottom: 1px solid #f0f0f0;">${item.amount}</td>
+      </tr>`
+        )
+        .join("")
+    : "";
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Request – IRA Platform</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f0f2f5;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td align="center" style="padding: 40px 16px;">
+              <table role="presentation" style="width: 100%; max-width: 560px; border-collapse: collapse;">
+
+                <!-- Logo -->
+                <tr>
+                  <td align="center" style="padding-bottom: 24px;">
+                    <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: inline-block; line-height: 48px; text-align: center;">
+                      <span style="color: white; font-size: 22px; font-weight: 700;">I</span>
+                    </div>
+                    <p style="margin: 8px 0 0 0; font-size: 13px; color: #888; letter-spacing: 1px; text-transform: uppercase;">IRA Platform</p>
+                  </td>
+                </tr>
+
+                <!-- Main Card -->
+                <tr>
+                  <td style="background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+
+                    <!-- Card Header -->
+                    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 36px 40px 28px 40px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                          <h1 style="margin: 0 0 6px 0; color: white; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">Payment Request</h1>
+                          ${data.invoiceNumber ? `<p style="margin: 0; font-size: 13px; color: rgba(255,255,255,0.75);">Invoice #${data.invoiceNumber}</p>` : ''}
+                          ${data.dueDate ? `<p style="margin: 4px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.75);">Due by ${data.dueDate}</p>` : ''}
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Body -->
+                    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 36px 40px;">
+
+                          <p style="margin: 0 0 6px 0; font-size: 16px; color: #333;">
+                            Hello${data.recipientName ? ` <strong>${data.recipientName}</strong>` : ''},
+                          </p>
+                          <p style="margin: 0 0 28px 0; font-size: 15px; line-height: 24px; color: #555;">
+                            You have a new secure payment request. Please review the details below and complete your payment at your earliest convenience.
+                          </p>
+
+                          <!-- Order Summary -->
+                          ${itemRows ? `
+                          <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 700; color: #333; text-transform: uppercase; letter-spacing: 0.8px;">Your Order</p>
+                          <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 0;">
+                            ${itemRows}
+                          </table>
+                          ` : ''}
+
+                          <!-- Total -->
+                          ${data.amount ? `
+                          <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 16px 0 32px 0; border-top: 2px solid #111;">
+                            <tr>
+                              <td style="padding: 14px 0 0 0; font-size: 16px; font-weight: 700; color: #111;">Total</td>
+                              <td style="padding: 14px 0 0 0; font-size: 22px; font-weight: 700; color: #111; text-align: right;">₹${data.amount}</td>
+                            </tr>
+                          </table>
+                          ` : ''}
+
+                          <!-- Description -->
+                          ${data.description ? `
+                          <p style="margin: 0 0 28px 0; font-size: 14px; line-height: 22px; color: #666; padding: 14px 16px; background: #f9fafb; border-radius: 8px; border-left: 3px solid #667eea;">
+                            ${data.description}
+                          </p>
+                          ` : ''}
+
+                          <!-- CTA Button -->
+                          <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                            <tr>
+                              <td align="center">
+                                <a href="${data.paymentLink}"
+                                   style="display: inline-block; padding: 16px 48px; font-size: 16px; font-weight: 700; color: white; text-decoration: none; background: #10b981; border-radius: 8px; letter-spacing: 0.3px;">
+                                    Make Payment →
+                                </a>
+                              </td>
+                            </tr>
+                          </table>
+
+                          <p style="margin: 0 0 8px 0; font-size: 13px; color: #999; text-align: center;">Or copy this link into your browser:</p>
+                          <p style="margin: 0 0 28px 0; padding: 10px 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; word-break: break-all; font-size: 12px; color: #3b82f6; text-align: center;">
+                            ${data.paymentLink}
+                          </p>
+
+                          <!-- Info Box -->
+                          <table role="presentation" style="width: 100%; border-collapse: collapse; background: #eff6ff; border-radius: 8px;">
+                            <tr>
+                              <td style="padding: 16px 20px;">
+                                <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: #1d4ed8;">Payment Details</p>
+                                <p style="margin: 0; font-size: 13px; color: #555; line-height: 26px;">
+                                  ✅ &nbsp;Secure payment via Razorpay<br>
+                                  ⏱ &nbsp;Link expires in 24 hours<br>
+                                  💬 &nbsp;Questions? <a href="mailto:support@irascore.com" style="color: #3b82f6; text-decoration: none;">support@irascore.com</a>
+                                </p>
+                              </td>
+                            </tr>
+                          </table>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Footer -->
+                    <table role="presentation" style="width: 100%; border-collapse: collapse; background: #f9fafb; border-top: 1px solid #e5e7eb;">
+                      <tr>
+                        <td style="padding: 24px 40px; text-align: center;">
+                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #999;">
+                            This is an automated payment notification from IRA Platform.
+                          </p>
+                          <p style="margin: 0; font-size: 12px; color: #bbb;">
+                            &copy; ${new Date().getFullYear()} IRA Platform. All rights reserved.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+
+                <!-- Bottom note -->
+                <tr>
+                  <td align="center" style="padding: 20px 0 0 0;">
+                    <p style="margin: 0; font-size: 12px; color: #aaa;">Thanks for being a valued customer.</p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
+export function getPaymentLinkEmailText(data: PaymentLinkEmailData): string {
+  return `
+Payment Request from IRA Platform
+
+You have received a secure payment request.
+
+${data.amount ? `Amount Due: ₹${data.amount}\n` : ""}
+${data.description ? `${data.description}\n` : ""}
+
+Complete your payment by clicking this link:
+${data.paymentLink}
+
+Payment Details:
+- Secure payment via Razorpay
+- Link expires in 24 hours
+- Questions? Contact support@irascore.com
+
+---
+This is an automated payment notification from IRA Platform.
+© ${new Date().getFullYear()} IRA Platform. All rights reserved.
+  `.trim();
+}
+
+// Client email template
+
+export interface ClientCredentialsEmailData {
+  recipientEmail: string
+  recipientName: string
+  companyName: string
+  loginUrl: string
+  cin: string 
+}
+
+export function getClientCredentialsEmailHTML(data: ClientCredentialsEmailData): string {
+  return `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Welcome to your IPO Readiness Portal</h2>
+      <p>Dear ${data.recipientName},</p>
+      <p>Your payment has been received. You can now access your IPO Readiness Dashboard.</p>
+      <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <p><strong>Company:</strong> ${data.companyName}</p>
+        <p><strong>Your Login ID (CIN):</strong> ${data.cin}</p>
+      </div>
+      <p>Click the button below to login. You will receive an OTP on this email to verify.</p>
+      <a href="${data.loginUrl}" 
+        style="background: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; display: inline-block;">
+        Access Your Dashboard
+      </a>
+      <p style="margin-top: 16px; font-size: 13px; color: #6b7280;">
+        Or copy this link: ${data.loginUrl}
+      </p>
+    </div>
+  `
+}
+
+
+export function getClientCredentialsEmailText(data: ClientCredentialsEmailData): string {
+  return `
+Welcome to your IPO Readiness Portal
+
+Dear ${data.recipientName},
+
+Your payment has been received.
+
+Company: ${data.companyName}
+Your Login ID (CIN): ${data.cin}
+
+Login here: ${data.loginUrl}
+
+You will receive an OTP on this email to verify your identity.
+  `
 }

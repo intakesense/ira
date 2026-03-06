@@ -9,8 +9,17 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    LIGHT - "Modern Finance Professional"
    Philosophy: Warm, trustworthy, readable for financial data
+  
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-:root {
+@layer base {
+
+  *,
+  *::before,
+  *::after {
+    border-color: var(--border);
+  }
+}
+     :root {
   --background: oklch(0.97 0.005 85);       /* Warm off-white #f7f7f5 */
   --foreground: oklch(0.25 0.015 260);      /* Deep slate #323844 */
   --card: oklch(0.99 0.003 85);             /* Subtle cream #fefefd */
@@ -286,6 +295,7 @@ body {
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
+
 
 /* Gradient Animation */
 @keyframes gradient {

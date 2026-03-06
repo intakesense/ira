@@ -1,13 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { ThemeProvider } from "@/lib/theme-provider";
-import { Toaster } from "@/components/toaster";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
-import { PerformanceMonitor } from "@/components/performance-monitor";
-import { OrganizationSchema, WebApplicationSchema, ServiceSchema } from "@/components/structured-data";
-import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { Providers } from "./providers";
 import "./globals.css";
+import { OrganizationSchema, WebApplicationSchema, ServiceSchema } from "@/components/structured-data";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -117,27 +112,6 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "IRA",
-    startupImage: [
-      {
-        url: '/ira_logo.png',
-        media: '(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)',
-      },
-      {
-        url: '/ira_logo.png',
-        media: '(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)',
-      },
-      {
-        url: '/ira_logo.png',
-        media: '(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)',
-      },
-    ],
-  },
-  verification: {
-    google: 'google-site-verification-code',
-    yandex: 'yandex-verification-code',
-    other: {
-      me: [process.env.NEXT_PUBLIC_APP_URL || 'https://irascore.com'],
-    },
   },
   category: 'business',
 };
@@ -157,37 +131,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <OrganizationSchema />
-        <WebApplicationSchema />
-        <ServiceSchema />
-      </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ThemeProvider
-          attribute="data-theme"
-          defaultTheme="catppuccin-mocha"
-          enableSystem={false}
-          storageKey="ira-theme"
-        >
-          <ServiceWorkerRegister />
-          {children}
-          <Toaster />
-          {/* Only load analytics in production (Vercel deployment) */}
-          {process.env.NEXT_PUBLIC_VERCEL_ENV === 'production' && (
-            <>
-              <Analytics />
-              <SpeedInsights />
-            </>
-          )}
-          <PerformanceMonitor />
-        </ThemeProvider>
+       
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased` }  suppressHydrationWarning
+>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
