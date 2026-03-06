@@ -20,7 +20,7 @@ interface LeadData {
     q10EbitdaYear2: number | null;
     q10EbitdaYear3: number | null;
     q4PaidUpCapital: number | null;
-     q5OutstandingShares: number | null;
+    q5OutstandingShares: number | null;
     q6NetWorth: number | null;
     q7Borrowings: number | null;
     q8DebtEquityRatio: number | null;
@@ -578,6 +578,21 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
     channel.bind("new-message", (data: Message) => {
       setMessages((prev) => {
         if (prev.find((m) => m.id === data.id)) return prev;
+        const hasTempMatch = prev.find(
+          (m) =>
+            m.id.startsWith("temp-") &&
+            m.content === data.content &&
+            m.senderName === data.senderName,
+        );
+        if (hasTempMatch) {
+          return prev.map((m) =>
+            m.id.startsWith("temp-") &&
+            m.content === data.content &&
+            m.senderName === data.senderName
+              ? data
+              : m,
+          );
+        }
         return [...prev, data];
       });
     });
@@ -712,20 +727,38 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
 
   const sendMessage = async () => {
     if (!chatInput.trim()) return;
+    const sentContent = chatInput.trim();
+
+    // Optimistically add to UI
+    const tempMessage: Message = {
+      id: `temp-${Date.now()}`,
+      content: sentContent,
+      senderType: "CLIENT",
+      senderName: lead.contactPerson,
+      createdAt: new Date(),
+    };
+    setMessages((prev) => [...prev, tempMessage]);
+    setChatInput("");
+
     try {
-      await fetch("/api/chat/send", {
+      const res = await fetch("/api/chat/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           leadId: lead.leadDbId,
-          content: chatInput.trim(),
+          content: sentContent,
           senderType: "CLIENT",
           senderName: lead.contactPerson,
         }),
       });
-      setChatInput("");
+      const data = await res.json();
+      // Replace temp with real message
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempMessage.id ? data.message : m)),
+      );
     } catch (err) {
       console.error("Send failed:", err);
+      setMessages((prev) => prev.filter((m) => m.id !== tempMessage.id));
     }
   };
 
