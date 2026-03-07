@@ -569,7 +569,7 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
     fetch(`/api/chat/messages?leadId=${lead.leadDbId}`)
       .then((r) => r.json())
       .then((data) => {
-        setMessages(data.messages || []);
+        setMessages((data.messages || []).filter((m: Message) => m?.senderType));
         setChatLoading(false);
       })
       .catch(() => setChatLoading(false));
@@ -771,15 +771,15 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
     if (!chatInput.trim()) return;
     const sentContent = chatInput.trim();
 
-    // Optimistically add to UI
+    const tempId = `temp-${Date.now()}`;
     const tempMessage: Message = {
-      id: `temp-${Date.now()}`,
+      id: tempId,
       content: sentContent,
       senderType: "CLIENT",
       senderName: lead.contactPerson,
       createdAt: new Date(),
     };
-    setMessages((prev) => [...prev, tempMessage]);
+    setMessages((prev) => [...prev.filter((m) => m?.senderType), tempMessage]);
     setChatInput("");
 
     try {
@@ -794,13 +794,14 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
         }),
       });
       const data = await res.json();
-      // Replace temp with real message
-      setMessages((prev) =>
-        prev.map((m) => (m.id === tempMessage.id ? data.message : m)),
-      );
+      if (data.message) {
+        setMessages((prev) =>
+          prev.filter((m) => m?.senderType).map((m) => (m.id === tempId ? data.message : m))
+        );
+      }
     } catch (err) {
       console.error("Send failed:", err);
-      setMessages((prev) => prev.filter((m) => m.id !== tempMessage.id));
+      setMessages((prev) => prev.filter((m) => m?.senderType && m.id !== tempId));
     }
   };
 
@@ -2214,7 +2215,7 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
             No messages yet. Send a message to your advisor!
           </div>
         ) : (
-          messages.map((msg) => {
+            messages.filter(Boolean).map((msg) => {
             const isClient = msg.senderType === "CLIENT";
             return (
               <div

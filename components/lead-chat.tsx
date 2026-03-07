@@ -40,31 +40,26 @@ export function LeadChat({ leadId, senderName }: Props) {
   useEffect(() => {
     const channel = pusherClient.subscribe(`lead-${leadId}`);
     channel.bind("new-message", (data: Message) => {
+      if (!data?.senderType) return;
       setMessages((prev) => {
-        // Skip if exact id already exists
-        if (prev.find((m) => m.id === data.id)) return prev;
-        // Replace any temp message with same content sent by same person
-        const hasTempMatch = prev.find(
-          (m) =>
-            m.id.startsWith("temp-") &&
-            m.content === data.content &&
-            m.senderName === data.senderName,
-        );
-        if (hasTempMatch) {
-          return prev.map((m) =>
-            m.id.startsWith("temp-") &&
+        const safe = prev.filter((m) => m?.senderType);
+        // Already exists (real message)
+        if (safe.find((m) => m.id === data.id)) return safe;
+        // Replace matching temp message
+        const tempIdx = safe.findIndex(
+          (m) => m.id.startsWith("temp-") &&
             m.content === data.content &&
             m.senderName === data.senderName
-              ? data
-              : m,
-          );
+        );
+        if (tempIdx !== -1) {
+          const next = [...safe];
+          next[tempIdx] = data;
+          return next;
         }
-        return [...prev, data];
+        return [...safe, data];
       });
     });
-    return () => {
-      pusherClient.unsubscribe(`lead-${leadId}`);
-    };
+    return () => { pusherClient.unsubscribe(`lead-${leadId}`); };
   }, [leadId]);
 
   // Auto scroll to bottom
@@ -79,16 +74,16 @@ export function LeadChat({ leadId, senderName }: Props) {
     if (!input.trim() || sending) return;
     setSending(true);
 
+    const tempId = `temp-${Date.now()}`;
     const tempMessage: Message = {
-      id: `temp-${Date.now()}`,
+      id: tempId,
       content: input.trim(),
       senderType: "TEAM",
       senderName,
       createdAt: new Date(),
     };
 
-    // ← Optimistically add to UI immediately
-    setMessages((prev) => [...prev, tempMessage]);
+    setMessages((prev) => [...prev.filter((m) => m?.senderType), tempMessage]);
     const sentContent = input.trim();
     setInput("");
 
@@ -96,23 +91,18 @@ export function LeadChat({ leadId, senderName }: Props) {
       const res = await fetch("/api/chat/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          leadId,
-          content: sentContent,
-          senderType: "TEAM",
-          senderName,
-        }),
+        body: JSON.stringify({ leadId, content: sentContent, senderType: "TEAM", senderName }),
       });
       const data = await res.json();
-
-      // ← Replace temp message with real one from DB
-      setMessages((prev) =>
-        prev.map((m) => (m.id === tempMessage.id ? data.message : m)),
-      );
+      if (data.message) {
+        // Replace temp with real message
+        setMessages((prev) =>
+          prev.filter((m) => m?.senderType).map((m) => (m.id === tempId ? data.message : m))
+        );
+      }
     } catch (err) {
       console.error("Send failed:", err);
-      // ← Remove temp message on failure
-      setMessages((prev) => prev.filter((m) => m.id !== tempMessage.id));
+      setMessages((prev) => prev.filter((m) => m?.senderType && m.id !== tempId));
     } finally {
       setSending(false);
     }
