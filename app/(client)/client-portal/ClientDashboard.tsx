@@ -1256,189 +1256,477 @@ export default function ClientDashboard({ lead }: { lead: LeadData }) {
 
   // ── Report ────────────────────────────────────────────────────────────────
 
-  const downloadReportPDF = () => {
+ const downloadReportPDF = () => {
     if (!a) return;
     import("jspdf").then(({ default: jsPDF }) => {
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 20;
-      let y = 20;
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const pw = doc.internal.pageSize.getWidth();
+      const ph = doc.internal.pageSize.getHeight();
+      const ml = 20, mr = 20;
+      const cw = pw - ml - mr;
+      let y = 0;
 
-      const addText = (
-        text: string,
-        size: number,
-        bold = false,
-        color: [number, number, number] = [30, 30, 30],
-      ) => {
-        doc.setFontSize(size);
-        doc.setFont("helvetica", bold ? "bold" : "normal");
-        doc.setTextColor(...color);
-        const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
-        doc.text(lines, margin, y);
-        y += (size * 0.4 + 2) * (lines as string[]).length;
+      // ── Colors ──
+      const navy: [number,number,number] = [15, 40, 90];
+      const blue: [number,number,number] = [37, 99, 235];
+      const lightBlue: [number,number,number] = [219, 234, 254];
+      const gold: [number,number,number] = [180, 130, 40];
+      const green: [number,number,number] = [22, 163, 74];
+      const red: [number,number,number] = [220, 38, 38];
+      const orange: [number,number,number] = [234, 88, 12];
+      const gray: [number,number,number] = [100, 116, 139];
+      const lightGray: [number,number,number] = [241, 245, 249];
+      const darkText: [number,number,number] = [15, 23, 42];
+      const white: [number,number,number] = [255, 255, 255];
+
+      const newPage = () => { doc.addPage(); y = 22; };
+      const check = (need = 20) => { if (y + need > ph - 18) newPage(); };
+
+      const pageFooter = (pageNum: number) => {
+        doc.setFillColor(...navy);
+        doc.rect(0, ph - 12, pw, 12, "F");
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(...white);
+        doc.text("CONFIDENTIAL — IRA Platform IPO Readiness Report", pw / 2, ph - 5, { align: "center" });
+        doc.setTextColor(180, 200, 255);
+        doc.text(`Page ${pageNum}`, pw - mr, ph - 5, { align: "right" });
       };
 
-      const addLine = () => {
-        doc.setDrawColor(220, 220, 220);
-        doc.line(margin, y, pageWidth - margin, y);
-        y += 6;
+      const pageHeader = (title: string) => {
+        doc.setFillColor(...navy);
+        doc.rect(0, 0, pw, 18, "F");
+        doc.setFillColor(...gold);
+        doc.rect(0, 18, pw, 2, "F");
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...white);
+        doc.text(title, ml, 12);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(180, 200, 255);
+        doc.text(lead.companyName, pw - mr, 12, { align: "right" });
+        y = 28;
       };
 
-      const checkNewPage = () => {
-        if (y > 270) {
-          doc.addPage();
-          y = 20;
-        }
+      const sectionTitle = (title: string) => {
+        check(16);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...navy);
+        doc.text(title, ml, y);
+        doc.setDrawColor(...gold);
+        doc.setLineWidth(1.5);
+        doc.line(ml, y + 2, ml + doc.getTextWidth(title), y + 2);
+        y += 12;
       };
 
-      // Header
+      // ════════════════════════════════════════════
+      // PAGE 1 — COVER
+      // ════════════════════════════════════════════
+
+      // Navy top band
+      doc.setFillColor(...navy);
+      doc.rect(0, 0, pw, 140, "F");
+
+      // Blue triangle accent top-right
       doc.setFillColor(37, 99, 235);
-      doc.rect(0, 0, pageWidth, 40, "F");
-      doc.setFontSize(18);
+      doc.triangle(pw - 55, 0, pw, 0, pw, 90, "F");
+
+      // Light blue triangle accent
+      doc.setFillColor(59, 130, 246);
+      doc.triangle(pw - 30, 0, pw, 0, pw, 40, "F");
+
+      // Gold accent line
+      doc.setFillColor(...gold);
+      doc.rect(0, 140, pw, 3, "F");
+
+      // IRA branding
+      doc.setFillColor(...gold);
+      doc.rect(ml, 14, 3, 14, "F");
+      doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(255, 255, 255);
-      doc.text("IPO Readiness Assessment Report", margin, 25);
-      y = 55;
+      doc.setTextColor(...gold);
+      doc.text("IRA PLATFORM", ml + 6, 20);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(160, 185, 255);
+      doc.text("IPO READINESS ADVISORY", ml + 6, 26);
 
-      // Company Info
-      addText(lead.companyName, 16, true, [37, 99, 235]);
-      y += 2;
-      addText(`CIN: ${lead.cin}`, 10, false, [100, 100, 100]);
-      addText(
-        `Prepared for: ${lead.contactPerson}`,
-        10,
-        false,
-        [100, 100, 100],
-      );
-      addText(
-        `Date: ${new Date().toLocaleDateString("en-IN")}`,
-        10,
-        false,
-        [100, 100, 100],
-      );
-      y += 4;
-      addLine();
+      // Main title
+      doc.setFontSize(32);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...white);
+      doc.text("IPO READINESS", ml, 60);
+      doc.setFontSize(32);
+      doc.text("ASSESSMENT", ml, 74);
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(160, 185, 255);
+      doc.text("REPORT", ml, 86);
 
-      // Score Summary
-      addText("Assessment Score Summary", 13, true);
-      y += 2;
-      addText(`Overall Score: ${score}/100`, 11);
-      addText(`Rating: ${ratingLabel}`, 11);
-      if (a.q9TurnoverYear1)
-        addText(`Revenue (Latest): Rs ${a.q9TurnoverYear1.toFixed(1)} Cr`, 11);
-      if (a.q10EbitdaYear1)
-        addText(`EBITDA (Latest): Rs ${a.q10EbitdaYear1.toFixed(1)} Cr`, 11);
-      y += 4;
-      addLine();
+      // Gold divider line
+      doc.setDrawColor(...gold);
+      doc.setLineWidth(1);
+      doc.line(ml, 93, ml + 90, 93);
 
-      // Financial Overview
-      addText("Financial Overview", 13, true);
-      y += 2;
-      if (a.q4PaidUpCapital)
-        addText(`Paid-up Capital: Rs ${a.q4PaidUpCapital.toFixed(2)} Cr`, 11);
-      if (a.q6NetWorth)
-        addText(`Net Worth: Rs ${a.q6NetWorth.toFixed(2)} Cr`, 11);
-      if (a.q7Borrowings)
-        addText(`Borrowings: Rs ${a.q7Borrowings.toFixed(2)} Cr`, 11);
-      if (a.q8DebtEquityRatio)
-        addText(`Debt-Equity Ratio: ${a.q8DebtEquityRatio.toFixed(2)}x`, 11);
-      if (a.q11Eps) addText(`EPS: Rs ${a.q11Eps.toFixed(2)}`, 11);
-      y += 4;
-      addLine();
+      // Company name
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...white);
+      const compLines = doc.splitTextToSize(lead.companyName.toUpperCase(), cw - 20) as string[];
+      compLines.forEach((line, i) => doc.text(line, ml, 102 + i * 8));
 
-      // Q&A with Remarks
-      addText("Assessment Q&A", 13, true);
-      y += 4;
-      const remarks = (a.remarks as Record<string, string>) || {};
-      const questions = [
-        {
-          id: "hasInvestmentPlan",
-          q: "1. Are you ready with your investment plan?",
-        },
-        {
-          id: "q2aGovernancePlan",
-          q: "2. Is the corporate governance plan in place with Indian listing norms?",
-        },
-        {
-          id: "q2bFinancialReporting",
-          q: "3. Does your financial reporting comply with statutory laws?",
-        },
-        {
-          id: "q2cControlSystems",
-          q: "4. Does your company have robust financial and internal control systems?",
-        },
-        {
-          id: "q2dShareholdingClear",
-          q: "5. Is your shareholding clear and transparent?",
-        },
-        {
-          id: "q3aSeniorManagement",
-          q: "6. Does the company have a professional senior management team?",
-        },
-        {
-          id: "q3bIndependentBoard",
-          q: "7. Are there credible independent members on the board?",
-        },
-        {
-          id: "q3cMidManagement",
-          q: "8. Is there experienced staff at the mid-management level?",
-        },
-        {
-          id: "q3dKeyPersonnel",
-          q: "9. Are key personnel recognized per corporate governance norms?",
-        },
-        {
-          id: "q4PaidUpCapital",
-          q: `10. Paid-up Capital: ${a.q4PaidUpCapital ? `Rs ${a.q4PaidUpCapital.toFixed(2)} Cr` : "N/A"}`,
-        },
-        {
-          id: "q5OutstandingShares",
-          q: `11. Outstanding Shares: ${a.q5OutstandingShares ?? "N/A"}`,
-        },
-        {
-          id: "q6NetWorth",
-          q: `12. Net Worth: ${a.q6NetWorth ? `Rs ${a.q6NetWorth.toFixed(2)} Cr` : "N/A"}`,
-        },
-        {
-          id: "q7Borrowings",
-          q: `13. Total Borrowings: ${a.q7Borrowings ? `Rs ${a.q7Borrowings.toFixed(2)} Cr` : "N/A"}`,
-        },
-        {
-          id: "q8DebtEquityRatio",
-          q: `14. Debt-Equity Ratio: ${a.q8DebtEquityRatio?.toFixed(2) ?? "N/A"}`,
-        },
-        {
-          id: "q9Turnover",
-          q: `15. Turnover (Last 3 Years): Year1: ${a.q9TurnoverYear1 ?? "N/A"} Cr | Year2: ${a.q9TurnoverYear2 ?? "N/A"} Cr | Year3: ${a.q9TurnoverYear3 ?? "N/A"} Cr`,
-        },
-        {
-          id: "q10Turnover",
-          q: `16. EBITDA (Last 3 Years): Year1: ${a.q10EbitdaYear1 ?? "N/A"} Cr | Year2: ${a.q10EbitdaYear2 ?? "N/A"} Cr | Year3: ${a.q10EbitdaYear3 ?? "N/A"} Cr`,
-        },
-        {
-          id: "q11Eps",
-          q: `17. Earnings Per Share (EPS): ${a.q11Eps ? `Rs ${a.q11Eps.toFixed(2)}` : "N/A"}`,
-        },
+      // Meta info below gold bar
+      y = 152;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...gray);
+      doc.text(`CIN: ${lead.cin}`, ml, y);
+      doc.text(`Prepared for: ${lead.contactPerson}`, ml, y + 7);
+      doc.text(`Report Date: ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}`, ml, y + 14);
+
+      // Confidential badge
+      doc.setFillColor(...navy);
+      doc.roundedRect(pw - mr - 36, y + 8, 36, 9, 2, 2, "F");
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...gold);
+      doc.text("CONFIDENTIAL", pw - mr - 18, y + 14, { align: "center" });
+
+      // ── Score Circle ──
+      y = 175;
+      const cx = pw / 2, cy = y + 22, cr = 20;
+
+      // Outer shadow ring
+      doc.setFillColor(220, 230, 250);
+      doc.circle(cx, cy, cr + 2, "F");
+
+      // White bg
+      doc.setFillColor(...white);
+      doc.circle(cx, cy, cr, "F");
+
+      // Score arc ring
+      const scoreColor: [number,number,number] = score >= 70 ? green : score >= 40 ? orange : red;
+      doc.setDrawColor(...scoreColor);
+      doc.setLineWidth(3.5);
+      doc.circle(cx, cy, cr - 1);
+
+      // Score number
+      doc.setFontSize(20);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...scoreColor);
+      doc.text(`${score}`, cx, cy + 3, { align: "center" });
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...gray);
+      doc.text("/100", cx, cy + 9, { align: "center" });
+
+      // Label above
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...darkText);
+      doc.text("OVERALL IPO READINESS SCORE", cx, y - 3, { align: "center" });
+
+      // Rating pill
+      doc.setFillColor(...scoreColor);
+      doc.roundedRect(cx - 26, cy + 13, 52, 9, 3, 3, "F");
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...white);
+      doc.text(ratingLabel, cx, cy + 19, { align: "center" });
+
+      // ── KPI Boxes ──
+      y = cy + 30;
+      const kpis = [
+        { label: "Paid-up Capital", value: a.q4PaidUpCapital ? `Rs.${a.q4PaidUpCapital.toFixed(1)}Cr` : "N/A" },
+        { label: "Net Worth", value: a.q6NetWorth ? `Rs.${a.q6NetWorth.toFixed(1)}Cr` : "N/A" },
+        { label: "D/E Ratio", value: a.q8DebtEquityRatio ? `${a.q8DebtEquityRatio.toFixed(2)}x` : "N/A" },
+        { label: "EPS", value: a.q11Eps ? `Rs.${a.q11Eps.toFixed(2)}` : "N/A" },
       ];
-
-      questions.forEach(({ id, q }) => {
-        checkNewPage();
-        addText(q, 10, true);
-        if (remarks[id])
-          addText(`Reason: ${remarks[id]}`, 9, false, [80, 80, 80]);
-        y += 4;
+      const bw = (cw - 9) / 4;
+      kpis.forEach((k, i) => {
+        const bx = ml + i * (bw + 3);
+        // Card shadow
+        doc.setFillColor(200, 210, 235);
+        doc.roundedRect(bx + 1, y + 1, bw, 22, 3, 3, "F");
+        // Card
+        doc.setFillColor(...white);
+        doc.roundedRect(bx, y, bw, 22, 3, 3, "F");
+        // Top accent
+        doc.setFillColor(...blue);
+        doc.roundedRect(bx, y, bw, 4, 2, 2, "F");
+        // Value
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...navy);
+        doc.text(k.value, bx + bw / 2, y + 13, { align: "center" });
+        // Label
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(...gray);
+        doc.text(k.label, bx + bw / 2, y + 19, { align: "center" });
       });
 
-      addLine();
-      doc.setFontSize(9);
-      doc.setTextColor(150, 150, 150);
-      doc.text(
-        "This report is confidential and prepared by IPO Ready Advisory.",
-        margin,
-        285,
-      );
+      pageFooter(1);
 
-      doc.save(`IPO_Report_${lead.companyName.replace(/\s+/g, "_")}.pdf`);
+      // ════════════════════════════════════════════
+      // PAGE 2 — FINANCIAL OVERVIEW + CHARTS
+      // ════════════════════════════════════════════
+      newPage();
+      pageHeader("FINANCIAL OVERVIEW");
+
+      sectionTitle("Revenue & EBITDA Trend (in Crores)");
+
+      // ── Bar Chart ──
+      const years = ["Year 3", "Year 2", "Year 1 (Latest)"];
+      const turnover = [a.q9TurnoverYear3 ?? 0, a.q9TurnoverYear2 ?? 0, a.q9TurnoverYear1 ?? 0];
+      const ebitda = [a.q10EbitdaYear3 ?? 0, a.q10EbitdaYear2 ?? 0, a.q10EbitdaYear1 ?? 0];
+      const maxVal = Math.max(...turnover, ...ebitda, 1);
+
+      const chartH = 45;
+      const chartX = ml + 12; // leave room for y-axis labels
+      const chartW = cw - 12;
+      const chartY = y;
+
+      // Chart background
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(ml, chartY - 2, cw, chartH + 16, 3, 3, "F");
+
+      // Grid lines + Y axis labels
+      [0, 0.25, 0.5, 0.75, 1].forEach(pct => {
+        const gy = chartY + chartH - chartH * pct;
+        doc.setDrawColor(pct === 0 ? 150 : 220, pct === 0 ? 150 : 220, pct === 0 ? 150 : 220);
+        doc.setLineWidth(pct === 0 ? 0.5 : 0.2);
+        doc.line(chartX, gy, chartX + chartW, gy);
+        if (pct > 0) {
+          doc.setFontSize(6);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(...gray);
+          doc.text(`${(maxVal * pct).toFixed(0)}Cr`, chartX - 1, gy + 1.5, { align: "right" });
+        }
+      });
+
+      // Bars
+      const groupW = chartW / 3;
+      years.forEach((yr, i) => {
+        const groupX = chartX + i * groupW;
+        const pad = groupW * 0.12;
+        const twoBarW = (groupW - pad * 3) / 2;
+
+        const th = Math.max((turnover[i] / maxVal) * chartH, 0);
+        const eh = Math.max((ebitda[i] / maxVal) * chartH, 0);
+        const tbx = groupX + pad;
+        const ebx = tbx + twoBarW + pad * 0.5;
+
+        // Turnover bar
+        if (th > 0) {
+          doc.setFillColor(...blue);
+          doc.rect(tbx, chartY + chartH - th, twoBarW, th, "F");
+          doc.setFontSize(6);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(...darkText);
+          doc.text(`${turnover[i].toFixed(1)}`, tbx + twoBarW / 2, chartY + chartH - th - 1.5, { align: "center" });
+        }
+
+        // EBITDA bar
+        if (eh > 0) {
+          doc.setFillColor(...gold);
+          doc.rect(ebx, chartY + chartH - eh, twoBarW, eh, "F");
+          doc.setFontSize(6);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(...darkText);
+          doc.text(`${ebitda[i].toFixed(1)}`, ebx + twoBarW / 2, chartY + chartH - eh - 1.5, { align: "center" });
+        }
+
+        // Year label
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(...gray);
+        doc.text(yr, groupX + groupW / 2, chartY + chartH + 6, { align: "center" });
+      });
+
+      // Legend
+      const legendY = chartY + chartH + 11;
+      doc.setFillColor(...blue);
+      doc.rect(chartX + cw / 2 - 30, legendY, 7, 4, "F");
+      doc.setFontSize(7);
+      doc.setTextColor(...darkText);
+      doc.text("Turnover (Cr)", chartX + cw / 2 - 21, legendY + 3.5);
+      doc.setFillColor(...gold);
+      doc.rect(chartX + cw / 2 + 10, legendY, 7, 4, "F");
+      doc.text("EBITDA (Cr)", chartX + cw / 2 + 19, legendY + 3.5);
+
+      y = legendY + 14;
+
+      // ── Key Financial Metrics Table ──
+      sectionTitle("Key Financial Metrics");
+
+      const metrics = [
+        { label: "Paid-up Capital", value: a.q4PaidUpCapital ? `Rs. ${a.q4PaidUpCapital.toFixed(2)} Cr` : "N/A", hi: false },
+        { label: "Outstanding Shares", value: a.q5OutstandingShares?.toLocaleString() ?? "N/A", hi: false },
+        { label: "Net Worth", value: a.q6NetWorth ? `Rs. ${a.q6NetWorth.toFixed(2)} Cr` : "N/A", hi: true },
+        { label: "Total Borrowings", value: a.q7Borrowings ? `Rs. ${a.q7Borrowings.toFixed(2)} Cr` : "N/A", hi: false },
+        { label: "Debt-Equity Ratio", value: a.q8DebtEquityRatio ? `${a.q8DebtEquityRatio.toFixed(2)}x` : "N/A", hi: true },
+        { label: "EPS", value: a.q11Eps ? `Rs. ${a.q11Eps.toFixed(2)}` : "N/A", hi: true },
+      ];
+
+      metrics.forEach((m, i) => {
+        check(12);
+        const rowY = y;
+        if (m.hi) {
+          doc.setFillColor(...lightBlue);
+        } else if (i % 2 === 0) {
+          doc.setFillColor(...lightGray);
+        } else {
+          doc.setFillColor(...white);
+        }
+        doc.rect(ml, rowY - 4, cw, 11, "F");
+
+        // Left accent for highlighted
+        if (m.hi) {
+          doc.setFillColor(...blue);
+          doc.rect(ml, rowY - 4, 3, 11, "F");
+        }
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(...darkText);
+        doc.text(m.label, ml + 6, rowY + 3);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...navy);
+        doc.text(m.value, pw - mr - 2, rowY + 3, { align: "right" });
+        y += 12;
+      });
+
+      y += 4;
+
+      // ── Category Score Bars ──
+      sectionTitle("Category Score Breakdown");
+
+      const categories = [
+        { label: "Investment & Planning", pct: a.hasInvestmentPlan ? 100 : 0 },
+        { label: "Corporate Governance", pct: Math.round(([a.q2aGovernancePlan, a.q2bFinancialReporting, a.q2cControlSystems, a.q2dShareholdingClear].filter(Boolean).length / 4) * 100) },
+        { label: "Team Readiness", pct: Math.round(([a.q3aSeniorManagement, a.q3bIndependentBoard, a.q3cMidManagement, a.q3dKeyPersonnel].filter(Boolean).length / 4) * 100) },
+        { label: "Financial Health", pct: a.q9TurnoverYear1 ? Math.min(100, Math.round((a.q9TurnoverYear1 / 50) * 100)) : 0 },
+      ];
+
+      categories.forEach((cat) => {
+        check(16);
+        const bc: [number,number,number] = cat.pct >= 75 ? green : cat.pct >= 50 ? orange : red;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(...darkText);
+        doc.text(cat.label, ml, y);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...bc);
+        doc.text(`${cat.pct}%`, pw - mr, y, { align: "right" });
+        // Track bg
+        doc.setFillColor(220, 225, 235);
+        doc.roundedRect(ml, y + 3, cw, 5, 2, 2, "F");
+        // Fill
+        if (cat.pct > 0) {
+          doc.setFillColor(...bc);
+          doc.roundedRect(ml, y + 3, (cw * cat.pct) / 100, 5, 2, 2, "F");
+        }
+        y += 16;
+      });
+
+      pageFooter(2);
+
+      // ════════════════════════════════════════════
+      // PAGE 3 — DETAILED Q&A
+      // ════════════════════════════════════════════
+      newPage();
+      pageHeader("ASSESSMENT Q&A");
+
+      sectionTitle("Detailed Assessment Responses");
+
+      const remarks = (a.remarks as Record<string, string>) || {};
+
+      const questions: { id: string; q: string; val?: boolean | null; value?: string }[] = [
+        { id: "hasInvestmentPlan", q: "Are you ready with your investment plan?", val: a.hasInvestmentPlan },
+        { id: "q2aGovernancePlan", q: "Is the corporate governance plan in place with Indian listing norms?", val: a.q2aGovernancePlan },
+        { id: "q2bFinancialReporting", q: "Does your financial reporting comply with statutory laws?", val: a.q2bFinancialReporting },
+        { id: "q2cControlSystems", q: "Does your company have robust financial and internal control systems?", val: a.q2cControlSystems },
+        { id: "q2dShareholdingClear", q: "Is your shareholding clear and transparent?", val: a.q2dShareholdingClear },
+        { id: "q3aSeniorManagement", q: "Does the company have a professional senior management team?", val: a.q3aSeniorManagement },
+        { id: "q3bIndependentBoard", q: "Are there credible independent members on the board?", val: a.q3bIndependentBoard },
+        { id: "q3cMidManagement", q: "Is there experienced staff at the mid-management level?", val: a.q3cMidManagement },
+        { id: "q3dKeyPersonnel", q: "Are key personnel recognized per corporate governance norms?", val: a.q3dKeyPersonnel },
+        { id: "q4PaidUpCapital", q: "Paid-up Capital", value: a.q4PaidUpCapital ? `Rs. ${a.q4PaidUpCapital.toFixed(2)} Cr` : "N/A" },
+        { id: "q5OutstandingShares", q: "Outstanding Shares", value: a.q5OutstandingShares?.toLocaleString() ?? "N/A" },
+        { id: "q6NetWorth", q: "Net Worth", value: a.q6NetWorth ? `Rs. ${a.q6NetWorth.toFixed(2)} Cr` : "N/A" },
+        { id: "q7Borrowings", q: "Total Borrowings", value: a.q7Borrowings ? `Rs. ${a.q7Borrowings.toFixed(2)} Cr` : "N/A" },
+        { id: "q8DebtEquityRatio", q: "Debt-Equity Ratio", value: a.q8DebtEquityRatio ? `${a.q8DebtEquityRatio.toFixed(2)}x` : "N/A" },
+        { id: "q9Turnover", q: "Turnover — Last 3 Years", value: `Y1: ${a.q9TurnoverYear1 ?? "N/A"} Cr  |  Y2: ${a.q9TurnoverYear2 ?? "N/A"} Cr  |  Y3: ${a.q9TurnoverYear3 ?? "N/A"} Cr` },
+        { id: "q10Turnover", q: "EBITDA — Last 3 Years", value: `Y1: ${a.q10EbitdaYear1 ?? "N/A"} Cr  |  Y2: ${a.q10EbitdaYear2 ?? "N/A"} Cr  |  Y3: ${a.q10EbitdaYear3 ?? "N/A"} Cr` },
+        { id: "q11Eps", q: "Earnings Per Share (EPS)", value: a.q11Eps ? `Rs. ${a.q11Eps.toFixed(2)}` : "N/A" },
+      ];
+
+      questions.forEach(({ id, q, val, value }, i) => {
+        const remarkText = remarks[id] ?? "";
+        const remarkLines = remarkText ? doc.splitTextToSize(`"${remarkText}"`, cw - 18) as string[] : [];
+        const blockH = 14 + (remarkLines.length > 0 ? remarkLines.length * 5 + 4 : 0);
+        check(blockH + 4);
+
+        // Row background
+        if (i % 2 === 0) {
+          doc.setFillColor(248, 250, 252);
+        } else {
+          doc.setFillColor(...white);
+        }
+        doc.roundedRect(ml, y - 3, cw, blockH, 2, 2, "F");
+
+        // Left border accent
+        doc.setFillColor(...blue);
+        doc.rect(ml, y - 3, 3, blockH, "F");
+
+        // Number badge
+        doc.setFillColor(...navy);
+        doc.circle(ml + 10, y + 3, 3, "F");
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...white);
+        doc.text(`${i + 1}`, ml + 10, y + 5, { align: "center" });
+
+        // Question text
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...darkText);
+        const qLines = doc.splitTextToSize(q, cw - 45) as string[];
+        doc.text(qLines, ml + 18, y + 4);
+
+        // Yes/No badge or value on right
+        if (val !== null && val !== undefined) {
+          const bc: [number,number,number] = val ? green : red;
+          doc.setFillColor(...bc);
+          doc.roundedRect(pw - mr - 16, y - 1, 16, 8, 2, 2, "F");
+          doc.setFontSize(7.5);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(...white);
+          doc.text(val ? "YES" : "NO", pw - mr - 8, y + 4.5, { align: "center" });
+        } else if (value) {
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(...navy);
+          doc.text(value, pw - mr - 2, y + 4, { align: "right" });
+        }
+
+        // Remark text — larger, italic, indented
+        if (remarkLines.length > 0) {
+          const remarkY = y + (qLines.length > 1 ? qLines.length * 5 + 2 : 8);
+          doc.setFontSize(9.5);
+          doc.setFont("helvetica", "italic");
+          doc.setTextColor(70, 90, 130);
+          doc.text(remarkLines, ml + 18, remarkY);
+        }
+
+        y += blockH + 5;
+      });
+
+      pageFooter(3);
+
+      doc.save(`IPO_Readiness_Report_${lead.companyName.replace(/\s+/g, "_")}.pdf`);
     });
   };
   const renderReport = () => (
