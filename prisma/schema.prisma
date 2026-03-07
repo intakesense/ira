@@ -127,6 +127,7 @@ enum DocumentType {
   JPG
   JPEG
   PNG
+  EXCEL
 }
 
 enum OrganicSubmissionStatus {
@@ -175,6 +176,7 @@ model Lead {
   // Payment
   paymentLink       String?
   paymentLinkSentAt DateTime?
+  portalAccessSentAt DateTime?
 
   // Status & assignment
   status               LeadStatus  @default(NEW)
@@ -186,6 +188,7 @@ model Lead {
   documents           Document[]
   auditLogs           AuditLog[]
   organicSubmissions  OrganicSubmission[]  // Reverse relation
+  messages            Message[]             // Chat messages
 
   // Metadata
   createdById   String
@@ -283,6 +286,11 @@ model Assessment {
   answers              AssessmentAnswer[]           // Dynamic question answers
 
   // ==========================================
+  // Remarks (per-question notes from assessor)
+  // ==========================================
+  remarks            Json?            // { "questionId": "reason text", ... }
+
+  // ==========================================
   // Workflow
   // ==========================================
   status             AssessmentStatus  @default(DRAFT)
@@ -311,6 +319,7 @@ model Document {
   fileUrl    String       @db.Text
   fileType   DocumentType
   fileSize   Int          // in bytes
+  source     String       @default("TEAM")  // "CLIENT" | "TEAM"
 
   uploadedById String
   uploadedBy   User    @relation("UploadedDocuments", fields: [uploadedById], references: [id])
@@ -439,3 +448,17 @@ model OrganicSubmission {
   @@map("organic_submission")
 }
 
+// Chat messages between team and clients
+model Message {
+  id         String   @id @default(cuid())
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  content    String   @db.Text
+  senderType String   // "CLIENT" | "TEAM"
+  senderName String
+  createdAt  DateTime @default(now())
+
+  @@index([leadId])
+  @@index([createdAt])
+  @@map("message")
+}

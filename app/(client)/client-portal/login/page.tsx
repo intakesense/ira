@@ -159,12 +159,13 @@ export default function ClientPortalLoginPage() {
   const cinRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-  const timer = setTimeout(() => {
-    cinRef.current?.focus();
-  }, 600);
+    setMounted(true);
+    const timer = setTimeout(() => {
+      cinRef.current?.focus();
+    }, 600);
 
-  return () => clearTimeout(timer);
-}, []);
+    return () => clearTimeout(timer);
+  }, []);
   useEffect(() => {
     if (resendTimer > 0) {
       const t = setTimeout(() => setResendTimer((r) => r - 1), 1000);
