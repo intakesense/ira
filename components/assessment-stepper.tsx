@@ -582,7 +582,7 @@ function Step2FinancialVerification({
 }
 
 // ============================================================================
-// Step 3: Preset Questionnaire (Unchanged logic, just keeping it here)
+// Step 3: Preset Questionnaired
 // ============================================================================
 function YesNoQuestion({
   id,
